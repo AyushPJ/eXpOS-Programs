@@ -1,11 +1,11 @@
 load --os $EXP_OS/spl/spl_progs/os_startup.xsm
-load --module 0 $EXP_OS/spl/spl_progs/sample_resourceManager_module.xsm
-load --module 4 $EXP_OS/spl/spl_progs/sample_deviceManager_module.xsm
-load --module 5 $EXP_OS/spl/spl_progs/sample_scheduler_module.xsm
-load --module 7 $EXP_OS/spl/spl_progs/sample_boot_module.xsm
-load --int=timer $EXP_OS/spl/spl_progs/sample_timer.xsm
-load --int=7 $EXP_OS/spl/spl_progs/sample_int7.xsm
-load --int=10 $EXP_OS/spl/spl_progs/sample_int10.xsm
+load --module 0 $EXP_OS/spl/spl_progs/resourceManager_module.xsm
+load --module 4 $EXP_OS/spl/spl_progs/deviceManager_module.xsm
+load --module 5 $EXP_OS/spl/spl_progs/scheduler_module.xsm
+load --module 7 $EXP_OS/spl/spl_progs/boot_module.xsm
+load --int=timer $EXP_OS/spl/spl_progs/timer.xsm
+load --int=7 $EXP_OS/spl/spl_progs/int7.xsm
+load --int=10 $EXP_OS/spl/spl_progs/int10.xsm
 load --exhandler $EXP_OS/spl/spl_progs/haltprog.xsm
 load --library $EXP_OS/expl/library.lib
 load --init $EXP_OS/expl/samples/odd1to100.xsm
