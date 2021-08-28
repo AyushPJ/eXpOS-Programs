@@ -1,0 +1,50 @@
+//Saving current process details
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+SP = SP + 1;
+[SP] = BP;
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+
+[process_table_entry + 12] = SP % 512;
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+alias nextPID  R2;
+nextPID  = (currentPID + 1) % 16;
+
+while(nextPID!=currentPID) do
+	if([PROCESS_TABLE + (nextPID * 16) + 4] == READY || [PROCESS_TABLE + (nextPID * 16) + 4] == CREATED) then
+		break;
+	endif;
+	nextPID = (nextPID + 1) % 16;
+endwhile; 
+
+//Restoring new process details
+alias new_process_table R3;
+new_process_table = PROCESS_TABLE + nextPID * 16;
+
+//Set back kernel SP, PTBR, PTLR
+SP = [new_process_table + 11] * 512 + [new_process_table + 12];
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+
+//Setting PID of System Status Table as newPID
+[SYSTEM_STATUS_TABLE  + 1] = nextPID;
+
+//Process in CREATED state. Switching to user stack and direct IRET
+if([new_process_table + 4] == CREATED) then
+	SP = [new_process_table + 13];
+	[new_process_table + 4] = RUNNING;
+	[new_process_table + 9] = 0;
+	ireturn;
+endif;
+
+//Process not in CREATED state. Restoring BP and returning to module caller
+[new_process_table + 4] = RUNNING;
+BP = [SP];
+SP = SP - 1;
+
+return;
