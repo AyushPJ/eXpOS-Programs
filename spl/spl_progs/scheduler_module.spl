@@ -12,15 +12,32 @@ process_table_entry = PROCESS_TABLE + currentPID * 16;
 [process_table_entry + 14] = PTBR;
 [process_table_entry + 15] = PTLR;
 
+//setting currentPID to 1 in the case of idle to use the same loop for all processes
+if(currentPID==0) then
+	currentPID = 1;
+endif;
+
 alias nextPID  R2;
-nextPID  = (currentPID + 1) % 16;
+nextPID  = currentPID + 1;
+
+if(nextPID == 16) then
+	nextPID = 1;
+endif;
 
 while(nextPID!=currentPID) do
 	if([PROCESS_TABLE + (nextPID * 16) + 4] == READY || [PROCESS_TABLE + (nextPID * 16) + 4] == CREATED) then
 		break;
 	endif;
-	nextPID = (nextPID + 1) % 16;
+	nextPID = nextPID + 1;
+	if(nextPID == 16) then
+		nextPID = 1;
+	endif;
 endwhile; 
+
+//No READY or CREATED process found. Switch to idle
+if(nextPID == currentPID && ([PROCESS_TABLE + (nextPID * 16) + 4] != READY && [PROCESS_TABLE + (nextPID * 16) + 4] != CREATED)) then
+	nextPID = 0;
+endif;
 
 //Restoring new process details
 alias new_process_table R3;

@@ -1,0 +1,30 @@
+//Switching to kernel stack and saving user process context
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+backup;
+
+//Fetching PID of process that currently controls terminal
+alias reqPID R0;
+reqPID = [TERMINAL_STATUS_TABLE + 1];
+
+//Copying input from port 0 to input buffer
+[PROCESS_TABLE + (reqPID * 16) + 8] = P0;
+
+//Calling Release Terminal 
+multipush(R0);
+//args: R1-function number, R2-process ID 
+R1 = 9;
+R2 = reqPID;
+call RESOURCE_MANAGER;
+multipop(R0);
+
+
+//Restoring user process context, switching to user stack and setting MODE FLAG to 0 
+restore;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+ireturn;
+
+
+  

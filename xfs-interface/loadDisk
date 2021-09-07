@@ -4,11 +4,11 @@ load --module 4 $EXP_OS/spl/spl_progs/deviceManager_module.xsm
 load --module 5 $EXP_OS/spl/spl_progs/scheduler_module.xsm
 load --module 7 $EXP_OS/spl/spl_progs/boot_module.xsm
 load --int=timer $EXP_OS/spl/spl_progs/timer.xsm
+load --int=console $EXP_OS/spl/spl_progs/consoleInt.xsm
+load --int=6 $EXP_OS/spl/spl_progs/int6.xsm
 load --int=7 $EXP_OS/spl/spl_progs/int7.xsm
 load --int=10 $EXP_OS/spl/spl_progs/int10.xsm
 load --exhandler $EXP_OS/spl/spl_progs/haltprog.xsm
 load --library $EXP_OS/expl/library.lib
-load --init $EXP_OS/expl/samples/odd1to100.xsm
-load --idle $EXP_OS/expl/samples/101to200.xsm
-load --exec $EXP_OS/expl/samples/even.xsm
-load --exec $EXP_OS/expl/samples/prime.xsm
+load --init $EXP_OS/expl/samples/sum1-50.xsm
+load --idle $EXP_OS/expl/expl_progs/idle.xsm

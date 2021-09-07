@@ -17,6 +17,31 @@ if (functionNum == 3) then
 	functionNum = 9;
 	call RESOURCE_MANAGER;
 	multipop(R1, R2, R3);
+	return;
 endif;
+
+//Terminal Read
+if (functionNum == 4) then
+	//Calling Acquire Terminal
+	multipush(R1, R2, R3);
+	functionNum = 8;
+	call RESOURCE_MANAGER;
+	multipop(R1, R2, R3);
+	
+	read;
+
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_TERMINAL;
+	
+	multipush(R1, R2, R3);
+	call SCHEDULER;
+	multipop(R1, R2, R3);
+	//Converting logical address sent in R3 to physical address
+	alias wordPhyAddr R4;
+	wordPhyAddr = [PTBR + 2 * ((word) / 512)] * 512 + ((word) % 512);
+	//Copying input from input buffer to specified address
+	[wordPhyAddr] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 8];
+	return;
+endif;
+
 
 return;
