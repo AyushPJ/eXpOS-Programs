@@ -1,0 +1,43 @@
+decl
+	int temp, N, i, j, a[100];
+enddecl
+
+int main()
+{
+ begin
+	temp = exposcall("Write", -2, "Bubble Sort");
+	temp = exposcall("Write", -2, "Enter size:");
+	temp = exposcall("Read", -1, N);
+
+	i = 0;
+	temp = exposcall("Write", -2, "Enter elem:");
+	while (i < N) do
+		temp = exposcall("Read", -1, a[i]);
+		i = i + 1;
+	endwhile;
+	
+	i = 0;
+	while (i<N) do
+		j = 0;
+		while (j<(N-i-1)) do
+			if (a[j+1] < a[j]) then
+				temp = a[j+1];
+				a[j+1] = a[j];
+				a[j] = temp;
+			endif;
+			j = j + 1;
+		endwhile;
+		i = i + 1;
+	endwhile;
+
+	temp = exposcall("Write", -2, "Sorted Arr:");	
+	i = 0;
+	while (i<N) do
+		temp = exposcall("Write", -2, a[i]);
+		i = i + 1; 
+	endwhile;
+	return 0;
+ end
+}
+	
+  
