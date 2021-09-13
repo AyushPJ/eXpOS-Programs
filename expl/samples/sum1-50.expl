@@ -4,6 +4,7 @@ decl
 	int temp, num, counter, sum;
 enddecl
 begin
+	temp = exposcall("Write", -2, "Enter No:");
 	temp = exposcall("Read", -1, num);
 	while (num <= 100) do
 		sum = 0;

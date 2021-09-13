@@ -1,0 +1,127 @@
+//Saving user SP and switching to kernel stack
+alias userSP R0;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//Setting mode flag to system call number (i.e. 9 for exec)
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 9;
+
+//retrieving file name from arguments
+alias fName R1;
+fName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+//searching for inode table entry of given file
+alias inodeEntryNo R4;
+inodeEntryNo = 0;
+while (inodeEntryNo < 60) do
+	if([INODE_TABLE + (16*inodeEntryNo)] == EXEC && [INODE_TABLE + (16*inodeEntryNo) +1] == fName) then
+		break;
+	endif;
+	inodeEntryNo = inodeEntryNo + 1;
+endwhile;
+
+//file not found
+if (inodeEntryNo == 60) then
+	//return value is -1
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+	
+	//setting MODE flag to 0
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+
+	//switching back to user stack
+	SP = userSP;
+	breakpoint;
+	ireturn;
+endif;
+	
+
+//Calling Exit Process
+multipush(R0, R1, R2, R3, R4);
+R1 = EXIT_PROCESS;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+call PROCESS_MANAGER;
+multipop(R0, R1, R2, R3, R4);
+
+//Reclaiming user area page for new process
+alias userAreaPageNo R3;
+userAreaPageNo = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
+
+//incrementing entry corresponding to user area page in memory free list
+[MEMORY_FREE_LIST + userAreaPageNo] = [MEMORY_FREE_LIST + userAreaPageNo] + 1;
+
+//decrementing memory free count in system status table
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+//resetting kernel stack
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//updating state of new process to RUNNING and storing inode index in process table
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = RUNNING;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 7] = inodeEntryNo;
+
+//Setting up page table for the new process
+multipush(R0, R1, R2, R3, R4);
+
+//Library
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
+
+//Stack after getting free pages
+R1 = GET_FREE_PAGE;
+call MEMORY_MANAGER;
+[PTBR + 16] = R0;
+[PTBR + 17] = "0110";
+R1 = GET_FREE_PAGE;
+call MEMORY_MANAGER;
+[PTBR + 18] = R0;
+[PTBR + 19] = "0110";
+
+//Heap after getting free pages
+R1 = GET_FREE_PAGE;
+call MEMORY_MANAGER;
+[PTBR + 4] = R0;
+[PTBR + 5] = "0110";
+R1 = GET_FREE_PAGE;
+call MEMORY_MANAGER;
+[PTBR + 6] = R0;
+[PTBR + 7] = "0110";
+
+multipop(R0, R1, R2, R3, R4);
+
+//Code after getting free pages
+alias counter R2;
+counter = 0;
+while (counter < 4) do
+	if ([INODE_TABLE + (16*inodeEntryNo) +  8 + counter] != -1) then
+		multipush(R0, R1, R2, R3, R4);
+		R1 = GET_FREE_PAGE;
+		call MEMORY_MANAGER;
+		[PTBR + 8 + 2*counter] = R0;
+		[PTBR + 8 + 2*counter + 1] = "0100";
+		multipop(R0, R1, R2, R3, R4);
+	else
+		[PTBR + 8 + 2*counter] = -1;
+		[PTBR + 8 + 2*counter + 1] = "0000";
+	endif;
+	counter = counter + 1;
+endwhile;
+
+//loading code blocks from disk to memory
+counter = 0;
+while (counter < 4) do
+	if ([PTBR + 8 + 2*counter] != -1) then
+		loadi([PTBR + 8 + 2*counter], [INODE_TABLE + (16*inodeEntryNo)  + 8 + counter]);
+	endif;
+	counter = counter + 1;
+endwhile;
+
+//entry point IP value fetched from top of stack for executing new process after IRET
+[[PTBR + 16] * 512] = [[PTBR + 8] * 512 + 1];
+
+//SP set to beginning of user stack; resetting MODE flag to 0
+SP = 8 * 512;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+ireturn;

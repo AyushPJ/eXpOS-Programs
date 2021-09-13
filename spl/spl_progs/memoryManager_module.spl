@@ -1,0 +1,61 @@
+alias funcNum R1;
+
+//Get Free Page
+if (funcNum == 1) then
+	//incrementing Wait Mem Count
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+	
+	//keep calling scheduler while memory full
+	while ([SYSTEM_STATUS_TABLE + 2] == 0) do
+		
+		//set process state to WAIT_MEM
+		[PROCESS_TABLE + (16 * [SYSTEM_STATUS_TABLE + 1]) + 4] = WAIT_MEM;
+		
+		call SCHEDULER;
+	endwhile;
+
+	//decrementing Wait Mem Count and Mem Free Count
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+	
+	//finding free page
+	alias counter R4;
+	alias retValue R0;
+
+	counter = 0;
+	while (counter < 128) do
+		if([MEMORY_FREE_LIST + counter] == 0) then
+			[MEMORY_FREE_LIST + counter] = 1;
+			retValue = counter;
+			break;
+		endif;
+		counter = counter  + 1;
+	endwhile;
+	return;
+endif;
+
+//Release Page
+if (funcNum == 2) then
+	alias pageNo R2;
+
+	//decrementing entry in Memory Free List
+	[MEMORY_FREE_LIST + pageNo] = [MEMORY_FREE_LIST + pageNo] - 1;
+
+	//incrementing Mem Free Count if page is free
+	if ([MEMORY_FREE_LIST + pageNo] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+	endif;
+	
+	//Setting status of all WAIT_MEM processes to READY
+	alias counter R4;
+	counter = 0;
+	while (counter < 16) do
+		if([PROCESS_TABLE + (16 * counter) + 4] == WAIT_MEM) then
+			[PROCESS_TABLE + (16 * counter) + 4] = READY;
+		endif;
+		counter = counter + 1;
+	endwhile;
+	return;
+endif;
+
+return;

@@ -1,0 +1,89 @@
+alias funcNum R1;
+
+//Free User Area Page
+if (funcNum == 2) then
+	alias PID R2;
+	alias userAreaPageNo R4;
+	userAreaPageNo = [PROCESS_TABLE + (16 * PID) + 11];
+	//calling Release Page
+	multipush(R1, R2);
+	funcNum = RELEASE_PAGE;
+	R2 = userAreaPageNo;
+	call MEMORY_MANAGER;
+	multipop(R1, R2);
+	return;
+endif;
+
+//Exit Process
+if (funcNum == 3) then
+	alias PID R2;
+
+	//calling Free Page Table
+	multipush(R1,R2);
+	funcNum = FREE_PAGE_TABLE;
+	call PROCESS_MANAGER;
+	multipop(R1,R2);	
+
+	//calling Free User Area Page
+	multipush(R1,R2);
+	funcNum = FREE_USER_AREA_PAGE;
+	call PROCESS_MANAGER;
+	multipop(R1,R2);
+	[PROCESS_TABLE + (16 * PID) + 4] = TERMINATED;
+
+	return;
+endif;
+
+//Free Page Table
+if (funcNum == 4) then	
+	//invalidating library page entries
+	[PTBR + 0] = -1;
+	[PTBR + 1] = "0000";
+	[PTBR + 2] = -1;
+	[PTBR + 3] = "0000";
+
+	//calling Release Page and invalidating page table entries for remaining pages
+	alias pageNo R2;
+	funcNum = RELEASE_PAGE;
+	//Heap
+	pageNo = [PTBR + 4];
+	call MEMORY_MANAGER;
+	[PTBR + 4] = -1;
+	[PTBR + 5] = "0000";
+	pageNo = [PTBR + 6];
+	call MEMORY_MANAGER;
+	[PTBR + 6] = -1;
+	[PTBR + 7] = "0000";
+	
+	//Code
+	pageNo = [PTBR + 8];
+	call MEMORY_MANAGER;
+	[PTBR + 8] = -1;
+	[PTBR + 9] = "0000";
+	pageNo = [PTBR + 10];
+	call MEMORY_MANAGER;
+	[PTBR + 10] = -1;
+	[PTBR + 11] = "0000";
+	pageNo = [PTBR + 12];
+	call MEMORY_MANAGER;
+	[PTBR + 12] = -1;
+	[PTBR + 13] = "0000";
+	pageNo = [PTBR + 14];
+	call MEMORY_MANAGER;
+	[PTBR + 14] = -1;
+	[PTBR + 15] = "0000";
+	
+	//Stack
+	pageNo = [PTBR + 16];
+	call MEMORY_MANAGER;
+	[PTBR + 16] = -1;
+	[PTBR + 17] = "0000";
+	pageNo = [PTBR + 18];
+	call MEMORY_MANAGER;
+	[PTBR + 18] = -1;
+	[PTBR + 19] = "0000";
+
+	return;
+endif;
+
+return;
