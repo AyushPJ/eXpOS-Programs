@@ -30,6 +30,10 @@ loadi(3,16);
 loadi(4,17);
 loadi(5,18);
 
+//Load Disk Interrupt routine
+loadi(6,19);
+loadi(7,20);
+
 //Load Console Interrupt Handler
 loadi(8,21);
 loadi(9,22);
@@ -89,6 +93,9 @@ while(counter<=15) do
 	counter = counter + 1;
 endwhile;
 
+//Initializing  Disk Status to free, i.e., 0
+[DISK_STATUS_TABLE] = 0;
+
 //INIT Process
 
 //Page Table
@@ -136,6 +143,13 @@ procTable = PROCESS_TABLE + 16;
 [procTable + 13] = 8*512;
 [procTable + 14] = PTBR;
 [procTable + 15] = PTLR;
+
+//Initializing per-process resource table of init
+counter = 0;
+while(counter < 8) do
+	[(([procTable + 11] + 1) * 512) - 2 - (2 * counter)] = -1;
+	counter = counter + 1;
+endwhile;
 
 //entry point IP value fetched from top of stack for executing INIT after IRET
 [76*512] = [65 * 512 + 1];

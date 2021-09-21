@@ -12,7 +12,7 @@ alias fName R1;
 fName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
 
 //searching for inode table entry of given file
-alias inodeEntryNo R4;
+alias inodeEntryNo R5;
 inodeEntryNo = 0;
 while (inodeEntryNo < 60) do
 	if([INODE_TABLE + (16*inodeEntryNo)] == EXEC && [INODE_TABLE + (16*inodeEntryNo) +1] == fName) then
@@ -37,11 +37,11 @@ endif;
 	
 
 //Calling Exit Process
-multipush(R0, R1, R2, R3, R4);
+multipush(R0, R1, R2, R3, R4, R5);
 R1 = EXIT_PROCESS;
 R2 = [SYSTEM_STATUS_TABLE + 1];
 call PROCESS_MANAGER;
-multipop(R0, R1, R2, R3, R4);
+multipop(R0, R1, R2, R3, R4, R5);
 
 //Reclaiming user area page for new process
 alias userAreaPageNo R3;
@@ -53,6 +53,14 @@ userAreaPageNo = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
 //decrementing memory free count in system status table
 [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
 
+//inititalizing the per-process resource table for the new process
+alias counter R6;
+counter = 0;
+while(counter < 8) do
+	[((userAreaPageNo + 1) * 512) - 2 - (2 * counter)] = -1;
+	counter = counter + 1;
+endwhile;
+
 //resetting kernel stack
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 
@@ -61,7 +69,7 @@ SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 7] = inodeEntryNo;
 
 //Setting up page table for the new process
-multipush(R0, R1, R2, R3, R4);
+multipush(R0, R1, R2, R3, R4, R5, R6);
 
 //Library
 [PTBR + 0] = 63;
@@ -89,19 +97,18 @@ call MEMORY_MANAGER;
 [PTBR + 6] = R0;
 [PTBR + 7] = "0110";
 
-multipop(R0, R1, R2, R3, R4);
+multipop(R0, R1, R2, R3, R4, R5, R6);
 
 //Code after getting free pages
-alias counter R2;
 counter = 0;
 while (counter < 4) do
 	if ([INODE_TABLE + (16*inodeEntryNo) +  8 + counter] != -1) then
-		multipush(R0, R1, R2, R3, R4);
+		multipush(R0, R1, R2, R3, R4, R5, R6);
 		R1 = GET_FREE_PAGE;
 		call MEMORY_MANAGER;
 		[PTBR + 8 + 2*counter] = R0;
 		[PTBR + 8 + 2*counter + 1] = "0100";
-		multipop(R0, R1, R2, R3, R4);
+		multipop(R0, R1, R2, R3, R4, R5, R6);
 	else
 		[PTBR + 8 + 2*counter] = -1;
 		[PTBR + 8 + 2*counter + 1] = "0000";
@@ -113,7 +120,14 @@ endwhile;
 counter = 0;
 while (counter < 4) do
 	if ([PTBR + 8 + 2*counter] != -1) then
-		loadi([PTBR + 8 + 2*counter], [INODE_TABLE + (16*inodeEntryNo)  + 8 + counter]);
+		//calling Disk Load
+		multipush(R0, R1, R2, R3, R4, R5, R6);
+		R1 = DISK_LOAD;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = [PTBR + 8 + 2*counter];
+		R4 = [INODE_TABLE + (16*inodeEntryNo) + 8 + counter];
+		call DEVICE_MANAGER;
+		multipop(R0, R1, R2, R3, R4, R5, R6);
 	endif;
 	counter = counter + 1;
 endwhile;

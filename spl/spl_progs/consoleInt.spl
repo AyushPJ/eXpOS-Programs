@@ -19,10 +19,9 @@ call RESOURCE_MANAGER;
 multipop(R0);
 
 
-//Restoring user process context, switching to user stack and setting MODE FLAG to 0 
+//Restoring user process context, switching to user stack 
 restore;
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
-[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
 
 ireturn;
 

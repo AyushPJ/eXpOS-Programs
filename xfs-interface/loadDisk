@@ -6,6 +6,7 @@ load --module 4 $EXP_OS/spl/spl_progs/deviceManager_module.xsm
 load --module 5 $EXP_OS/spl/spl_progs/scheduler_module.xsm
 load --module 7 $EXP_OS/spl/spl_progs/boot_module.xsm
 load --int=timer $EXP_OS/spl/spl_progs/timer.xsm
+load --int=disk $EXP_OS/spl/spl_progs/diskInt.xsm
 load --int=console $EXP_OS/spl/spl_progs/consoleInt.xsm
 load --int=6 $EXP_OS/spl/spl_progs/int6.xsm
 load --int=7 $EXP_OS/spl/spl_progs/int7.xsm
