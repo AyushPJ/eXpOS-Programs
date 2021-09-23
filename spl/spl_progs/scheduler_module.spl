@@ -63,5 +63,4 @@ endif;
 [new_process_table + 4] = RUNNING;
 BP = [SP];
 SP = SP - 1;
-
 return;

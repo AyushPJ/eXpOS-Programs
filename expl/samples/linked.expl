@@ -1,0 +1,47 @@
+type
+	Node{
+		int val;
+		Node next;
+	}
+endtype
+int main()
+{
+ decl
+	Node listHead, p, q;
+	int temp, N, in, i;
+ enddecl
+ begin
+	temp = exposcall("Heapset");
+	listHead = null;
+	temp = exposcall("Write", -2, "Enter size:");
+	temp = exposcall("Read", -1, N);
+
+	i = 0;
+	temp = exposcall("Write", -2, "Enter elem:");
+	while (i < N) do
+		temp = exposcall("Read", -1, in);
+		p = exposcall("Alloc",2);
+		p.val = in;
+		p.next = null;
+		if (listHead==null) then
+			listHead = p;
+		else
+			q.next = p;
+		endif;
+		q=p;
+		i = i + 1;
+	endwhile;
+
+	temp = exposcall("Write", -2, "Linked List:");	
+	p = listHead;
+	while (p != null) do
+		temp = exposcall("Write", -2, p.val);
+		q=p;
+		p = p.next; 
+		temp = exposcall("Free", q);
+	endwhile;
+	return 0;
+ end
+}
+	
+  

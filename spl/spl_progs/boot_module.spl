@@ -68,6 +68,9 @@ loadi(49,62);
 loadi(50,63);
 loadi(51,64);
 
+//Load Disk Free List
+loadi(61,2);
+
 alias counter R1;
 
 //Initializing Memory Free List
@@ -150,6 +153,22 @@ while(counter < 8) do
 	[(([procTable + 11] + 1) * 512) - 2 - (2 * counter)] = -1;
 	counter = counter + 1;
 endwhile;
+
+//Initializing Disk Map Table for init
+
+//Heap
+[DISK_MAP_TABLE + (1 * 10) + 2] = -1;
+[DISK_MAP_TABLE + (1 * 10) + 3] = -1;
+
+//Code
+[DISK_MAP_TABLE + (1 * 10) + 4] = 65;
+[DISK_MAP_TABLE + (1 * 10) + 5] = 66;
+[DISK_MAP_TABLE + (1 * 10) + 6] = -1;
+[DISK_MAP_TABLE + (1 * 10) + 7] = -1;
+
+//Stack
+[DISK_MAP_TABLE + (1 * 10) + 8] = -1;
+[DISK_MAP_TABLE + (1 * 10) + 9] = -1;
 
 //entry point IP value fetched from top of stack for executing INIT after IRET
 [76*512] = [65 * 512 + 1];

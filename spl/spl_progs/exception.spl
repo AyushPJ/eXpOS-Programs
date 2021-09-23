@@ -1,0 +1,84 @@
+//Setting mode flag to indicate exception (i.e. -1)
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = -1;
+
+//Switching to kernel stack and saving user process context and pushing EIP
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+backup;
+multipush(EIP);
+
+if (EC == 0 && [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] != ((PTLR*512) - 1)) then
+	//page fault due to code page
+	if (EPN >= 4 && EPN <= 7) then
+		R1 = GET_CODE_PAGE;
+		R2 = [DISK_MAP_TABLE + (10 * [SYSTEM_STATUS_TABLE + 1]) + EPN];
+		call MEMORY_MANAGER;
+		[PTBR + (2*EPN)] = R0;
+		[PTBR + (2*EPN) + 1] = "1100";
+	endif;
+	//page fault due to heap page
+	if (EPN >= 2 && EPN <=3) then
+		R1 = GET_FREE_PAGE;
+		call MEMORY_MANAGER;
+		[PTBR + (2*EPN)] = R0;
+		[PTBR + (2*EPN) + 1] = "1110";
+		
+		if (EPN == 2) then
+			R1 = GET_FREE_PAGE;
+			call MEMORY_MANAGER;
+			[PTBR + (2 * (EPN + 1))] = R0;
+			[PTBR + (2 * (EPN + 1)) + 1] = "1110";
+		endif;
+	endif;
+	
+	//resetting MODE FLAG, popping EIP and restoring user process context	
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+	multipop(EIP);
+	restore;
+	
+	//switching to user stack
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13];
+	
+	//Pushing EIP into top of user stack
+	SP = SP + 1;
+
+	[([PTBR + (2 * (SP/512))] * 512) + (SP % 512)] = EIP;
+
+	ireturn;
+
+else
+	alias errorMsg R10;
+
+	//Illegal Instruction
+	if (EC == 1) then
+		errorMsg = "Error. Code:1";
+		print errorMsg;	
+	//Illegal Memory Access		
+	else if (EC == 2) then
+		errorMsg = "Error. Code:2";
+		print errorMsg;
+	//Arithmetic Exception	
+	else if (EC == 3) then
+		errorMsg = "Error. Code:3";
+		print errorMsg;
+
+	//Stack Full
+	else if ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] == ((PTLR*512) - 1)) then
+		errorMsg = "Stack full";
+		print errorMsg;
+	endif;
+	endif;
+	endif;
+	endif;
+
+	errorMsg = "Exiting Proc.";
+	print errorMsg;
+
+	//calling Exit Process
+	R1 = EXIT_PROCESS;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call PROCESS_MANAGER;
+	
+	call SCHEDULER;
+
+endif;
