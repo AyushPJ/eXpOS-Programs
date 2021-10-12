@@ -51,9 +51,10 @@ PTLR = [new_process_table + 15];
 //Setting PID of System Status Table as newPID
 [SYSTEM_STATUS_TABLE  + 1] = nextPID;
 
-//Process in CREATED state. Switching to user stack and direct IRET
+//Process in CREATED state. Switching to user stack, setting BP value from top of kernel stack and direct IRET
 if([new_process_table + 4] == CREATED) then
 	SP = [new_process_table + 13];
+	BP = [[new_process_table + 11] * 512];
 	[new_process_table + 4] = RUNNING;
 	[new_process_table + 9] = 0;
 	ireturn;

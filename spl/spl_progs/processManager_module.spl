@@ -1,5 +1,31 @@
 alias funcNum R1;
 
+//Get PCB Entry
+if (funcNum == 1) then
+	alias counter R6;
+	counter = 0;
+	//searching for a TERMINATED process
+	while (counter < 16) do
+		if ([PROCESS_TABLE + (counter * 16) + 4] == TERMINATED) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+	alias retVal R0;
+	//no free process table entry found
+	if (counter == 16) then
+		retVal = -1;
+	else
+		//initializing PID, PTBR and PTLR entries in process table and setting STATE to ALLOCATED
+		[PROCESS_TABLE + (counter * 16) + 1] = counter;
+		[PROCESS_TABLE + (counter * 16) + 14] = PAGE_TABLE_BASE + (counter * 20);
+		[PROCESS_TABLE + (counter * 16) + 15] = 10;
+		[PROCESS_TABLE + (counter * 16) + 4] = ALLOCATED;
+		retVal = counter;
+	endif;
+	return;
+endif;
+
 //Free User Area Page
 if (funcNum == 2) then
 	alias PID R2;

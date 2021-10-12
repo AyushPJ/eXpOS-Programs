@@ -1,0 +1,180 @@
+//Saving user SP and switching to kernel stack
+alias userSP R10;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//Setting mode flag to system call number (i.e. 8 for fork)
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 8;
+
+
+//calling Get PCB Entry in Process Manager
+alias pcbIndex R11;
+multipush(R10);
+R1 = 1;
+call PROCESS_MANAGER;
+pcbIndex = R0;
+multipop(R10);
+
+//No free process table available
+if (pcbIndex == -1) then
+	//return value is -1
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+	
+	//setting MODE flag to 0
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+
+	//switching back to user stack
+	SP = userSP;
+	ireturn;
+endif;	
+
+alias freePage R12;
+//Heap pages of parent not allocated; allocating heap pages
+if ([PTBR + 4] == -1 && [PTBR + 6] == -1) then
+	//calling Get Free Page
+	multipush(R10, R11);
+	R1 = 1;
+	call MEMORY_MANAGER;
+	freePage = R0;
+	multipop(R10, R11);
+	
+	//setting page table entry for 1st heap page
+	[PTBR + 4] = freePage;
+	[PTBR + 5] = "0110";
+	
+	//calling Get Free Page
+	multipush(R10, R11);
+	R1 = 1;
+	call MEMORY_MANAGER;
+	freePage = R0;
+	multipop(R10, R11);
+	
+	//setting page table entry for 1st heap page
+	[PTBR + 6] = freePage;
+	[PTBR + 7] = "0110";
+endif;	
+	
+
+//Initialization of process table for child process
+
+alias childProcTable R13;
+alias parentProcTable R14;
+childProcTable = PROCESS_TABLE + pcbIndex * 16;
+parentProcTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+
+//copying USERID
+[childProcTable + 3] = [parentProcTable + 3];
+
+//copying SWAP FLAG
+[childProcTable + 6] = [parentProcTable + 6];
+
+//copying USER AREA SWAP STATUS
+[childProcTable + 10] = [parentProcTable + 10];
+
+//copying INODE INDEX
+[childProcTable + 7] = [parentProcTable + 7];
+
+//copying UPTR
+[childProcTable + 13] = [parentProcTable + 13];
+
+//Setting MODE FLAG, KPTR and TICK to 0
+[childProcTable + 9] = 0;
+[childProcTable + 12] = 0;
+[childProcTable + 0] = 0;
+
+//Storing PID of parent in PPID
+[childProcTable + 2] = [parentProcTable + 1];
+
+//allocating user area page and updating USER AREA PAGE NUMBER
+
+//calling Get Free Page
+multipush(R10, R11, R13, R14);
+R1 = 1;
+call MEMORY_MANAGER;
+freePage = R0;
+multipop(R10, R11, R13, R14);
+
+[childProcTable + 11] = freePage;
+
+//copying per-process resource table
+alias counter R6;
+counter = 0;
+while(counter < 8) do
+	[(([childProcTable + 11] + 1) * 512) - 16 + (2 * counter)] = [(([parentProcTable + 11]  + 1) * 512) - 16 + (2 * counter)];
+	[(([childProcTable + 11] + 1) * 512) - 16 + (2 * counter) + 1] = [(([parentProcTable + 11]  + 1) * 512) - 16 + (2 * counter) + 1];
+	counter = counter + 1;
+endwhile;
+
+//copying per-process disk map table
+counter = 2;
+while(counter < 10) do
+	[DISK_MAP_TABLE + ([childProcTable + 1] * 10) + counter] = [DISK_MAP_TABLE + ([parentProcTable + 1] * 10) + counter];
+	counter = counter + 1;
+endwhile;
+
+//initializing page table
+alias childPageTable R13;
+childPageTable = PAGE_TABLE_BASE + pcbIndex * 20;
+
+//copying entries for library, heap and code; incrementing entry in memory free list
+counter = 0;
+while(counter < 8) do
+	[childPageTable + 2*counter] = [PTBR + 2*counter];
+	[childPageTable + 2*counter + 1] = [PTBR + 2*counter + 1];
+	[MEMORY_FREE_LIST + [PTBR + 2*counter]] = [MEMORY_FREE_LIST + [PTBR + 2*counter]] + 1;
+	counter = counter + 1;
+endwhile;	
+
+//allocating pages for stack and initializing stack entry
+
+//1st Stack Page
+//calling Get Free Page
+multipush(R10, R11, R13, R14);
+R1 = 1;
+call MEMORY_MANAGER;
+freePage = R0;
+multipop(R10, R11, R13, R14);
+
+[childPageTable + 16] = freePage;
+[childPageTable + 17] = [PTBR + 17];
+
+//2nd Stack Page
+//calling Get Free Page
+multipush(R10, R11, R13, R14);
+R1 = 1;
+call MEMORY_MANAGER;
+freePage = R0;
+multipop(R10, R11, R13, R14);
+
+[childPageTable + 18] = freePage;
+[childPageTable + 19] = [PTBR + 19];
+
+//copying contents in user stack pages word by word
+counter = 0;
+while(counter < 512) do
+	[([childPageTable + 16] * 512) + counter] = [([PTBR + 16] * 512) + counter];
+	[([childPageTable + 18] * 512) + counter] = [([PTBR + 18] * 512) + counter];
+	counter = counter + 1;
+endwhile;
+	
+//Storing value of BP register on top of child's kernel stack
+[[PROCESS_TABLE + (pcbIndex * 16) + 11] * 512] = BP;
+
+//return value for parent
+[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = pcbIndex;
+
+//return value for child
+[[childPageTable + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+
+//setting STATE of child process to CREATED
+[PROCESS_TABLE + (pcbIndex * 16) + 4] = CREATED;
+
+//setting MODE flag to 0
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 9] = 0;
+
+//switching back to user stack
+SP = userSP;
+
+ireturn;
+

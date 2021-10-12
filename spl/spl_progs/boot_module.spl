@@ -10,6 +10,14 @@ loadi(60,4);
 loadi(22,35);
 loadi(23,36);
 
+//Load INT9 module
+loadi(20,33);
+loadi(21,34);
+
+//Load INT8 module
+loadi(18,31);
+loadi(19,32);
+
 //Load INT7 module
 loadi(16,29);
 loadi(17,30);
@@ -17,10 +25,6 @@ loadi(17,30);
 //Load INT6 module
 loadi(14,27);
 loadi(15,28);
-
-//Load INT9 module
-loadi(20,33);
-loadi(21,34);
 
 //Load exception handler
 loadi(2,15);
@@ -150,7 +154,7 @@ procTable = PROCESS_TABLE + 16;
 //Initializing per-process resource table of init
 counter = 0;
 while(counter < 8) do
-	[(([procTable + 11] + 1) * 512) - 2 - (2 * counter)] = -1;
+	[(([procTable + 11] + 1) * 512) - 16 + (2 * counter)] = -1;
 	counter = counter + 1;
 endwhile;
 
@@ -172,110 +176,6 @@ endwhile;
 
 //entry point IP value fetched from top of stack for executing INIT after IRET
 [76*512] = [65 * 512 + 1];
-
-////Load even program
-//loadi(85,69);
-//
-////even Program
-//
-////Page Table
-//PTBR = PAGE_TABLE_BASE+40;
-//
-////Library
-//[PTBR + 0] = 63;
-//[PTBR + 1] = "0100";
-//[PTBR + 2] = 64;
-//[PTBR + 3] = "0100";
-//
-////Heap
-//[PTBR + 4] = 83;
-//[PTBR + 5] = "0110";
-//[MEMORY_FREE_LIST + 83] = 1;
-//[PTBR + 6] = 84;
-//[PTBR + 7] = "0110";
-//[MEMORY_FREE_LIST + 84] = 1;
-//
-////Code
-//[PTBR + 8] = 85;
-//[PTBR + 9] = "0100";
-//[MEMORY_FREE_LIST + 85] = 1;
-//[PTBR + 10] = -1;
-//[PTBR + 11] = "0000";
-//[PTBR + 12] = -1;
-//[PTBR + 13] = "0000";
-//[PTBR + 14] = -1;
-//[PTBR + 15] = "0000";
-//
-////Stack
-//[PTBR + 16] = 86;
-//[PTBR + 17] = "0110";
-//[MEMORY_FREE_LIST + 86] = 1;
-//[PTBR + 18] = 87;
-//[PTBR + 19] = "0110";
-//[MEMORY_FREE_LIST + 87] = 1;
-//
-////Process Table
-//procTable = PROCESS_TABLE + 32;
-//[procTable + 1] = 2;
-//[procTable + 4] = CREATED;
-//[procTable + 11] = 88;
-//[MEMORY_FREE_LIST + 88] = 1;
-//[procTable + 12] = 0;
-//[procTable + 13] = 8*512;
-//[procTable + 14] = PTBR;
-//[procTable + 15] = PTLR;
-//
-////entry point IP value fetched from top of stack for executing even program after IRET
-//[86*512] = [85 * 512 + 1];
-//
-////Load prime program
-//loadi(91,70);
-//
-////prime Program
-//
-////Page Table
-//PTBR = PAGE_TABLE_BASE+60;
-//
-////Library
-//[PTBR + 0] = 63;
-//[PTBR + 1] = "0100";
-//[PTBR + 2] = 64;
-//[PTBR + 3] = "0100";
-//
-////Heap
-//[PTBR + 4] = 89;
-//[PTBR + 5] = "0110";
-//[PTBR + 6] = 90;
-//[PTBR + 7] = "0110";
-//
-////Code
-//[PTBR + 8] = 91;
-//[PTBR + 9] = "0100";
-//[PTBR + 10] = -1;
-//[PTBR + 11] = "0000";
-//[PTBR + 12] = -1;
-//[PTBR + 13] = "0000";
-//[PTBR + 14] = -1;
-//[PTBR + 15] = "0000";
-//
-////Stack
-//[PTBR + 16] = 92;
-//[PTBR + 17] = "0110";
-//[PTBR + 18] = 93;
-//[PTBR + 19] = "0110";
-//
-////Process Table
-//procTable = PROCESS_TABLE + 48;
-//[procTable + 1] = 3;
-//[procTable + 4] = CREATED;
-//[procTable + 11] = 94;
-//[procTable + 12] = 0;
-//[procTable + 13] = 8*512;
-//[procTable + 14] = PTBR;
-//[procTable + 15] = PTLR;
-//
-////entry point IP value fetched from top of stack for executing prime program after IRET
-//[92*512] = [91 * 512 + 1];
 
 //Initializing Wait Mem Count and Mem Free Count in System Status Table
 [SYSTEM_STATUS_TABLE + 3] = 0;

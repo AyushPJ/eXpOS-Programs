@@ -31,7 +31,6 @@ if (inodeEntryNo == 60) then
 
 	//switching back to user stack
 	SP = userSP;
-	breakpoint;
 	ireturn;
 endif;
 	
@@ -57,7 +56,7 @@ userAreaPageNo = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
 alias counter R6;
 counter = 0;
 while(counter < 8) do
-	[((userAreaPageNo + 1) * 512) - 2 - (2 * counter)] = -1;
+	[((userAreaPageNo + 1) * 512) - 16 + (2 * counter)] = -1;
 	counter = counter + 1;
 endwhile;
 
