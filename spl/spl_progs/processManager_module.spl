@@ -55,8 +55,27 @@ if (funcNum == 3) then
 	funcNum = FREE_USER_AREA_PAGE;
 	call PROCESS_MANAGER;
 	multipop(R1,R2);
-	[PROCESS_TABLE + (16 * PID) + 4] = TERMINATED;
 
+	//if Exit Process function was not invoked by an Exec system call (checked using value in MODE FLAG)
+	if ([PROCESS_TABLE + (PID * 16) + 9] != 9) then
+		alias counter R6;
+		counter = 0;
+		while (counter < 16) do
+			//wake up processes waiting for current process
+			if ([PROCESS_TABLE + (counter * 16) + 4] == WAIT_PROCESS && [PROCESS_TABLE + (counter * 16) + 5] == PID) then
+				[PROCESS_TABLE + (counter * 16) + 4] = READY;
+			endif;
+	
+			//set children of current process as orphan processes by setting their PPID to -1
+			if ([PROCESS_TABLE + (counter * 16) + 2] == PID) then
+				[PROCESS_TABLE + (counter * 16) + 2] = -1;
+			endif;
+			counter = counter + 1;
+		endwhile;
+	endif;
+	
+	[PROCESS_TABLE + (16 * PID) + 4] = TERMINATED;
+	
 	return;
 endif;
 

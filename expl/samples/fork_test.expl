@@ -5,9 +5,7 @@ int main()
 	str fname;
  enddecl
  begin
-	breakpoint;
 	pid = exposcall("Fork");
-	breakpoint;
 	if (pid == 0) then
 		temp = exposcall("Exec", "odd.xsm");
 	else

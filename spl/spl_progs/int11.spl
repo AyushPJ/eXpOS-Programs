@@ -1,0 +1,98 @@
+//Saving user SP and switching to kernel stack
+alias userSP R10;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//extracting system call number from user stack
+alias sysCallNo R11;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+//wait system call
+if (sysCallNo == 13) then
+	//changing MODE FLAG to system call number (i.e. 13 for wait)
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 13;
+	
+	//extracting PID from user stack
+	alias PID R12;
+	PID = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	//checking for invalid cases
+	if (PID == [SYSTEM_STATUS_TABLE + 1]			//waiting for self
+		|| [PROCESS_TABLE + (PID*16) + 4] == TERMINATED //waiting for a terminated process
+		|| PID > 15 || PID < 0				//PID not in valid range
+	) then
+		//return value is -1
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		
+		//resetting MODE FLAG
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//PID is valid
+	//changing STATE of current process to (WAIT_PROCESS, PID)
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_PROCESS;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 5] = PID;
+	
+	multipush(R10, R11, R12);
+	call SCHEDULER;
+	multipop(R10, R11, R12);
+
+	//on waking up...
+	//return value is 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		
+	//resetting MODE FLAG
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+			
+endif;
+
+//signal system call
+if (sysCallNo == 14) then
+	//changing MODE FLAG to system call number (i.e. 14 for signal)
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 14;
+	
+	//changing state of all processes with STATE (WAIT_PROCESS, current process PID) to READY
+	alias counter R6;
+	counter = 0;
+	while (counter < 16) do
+		if ([PROCESS_TABLE + (counter * 16) + 4] == WAIT_PROCESS && [PROCESS_TABLE + (counter * 16) + 5] == [SYSTEM_STATUS_TABLE + 1]) then
+			[PROCESS_TABLE + (counter * 16) + 4] = READY;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//return value is 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		
+	//resetting MODE FLAG
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+endif;
+
+//getpid system call
+if (sysCallNo == 11) then
+	//return value is PID of current process
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = [SYSTEM_STATUS_TABLE + 1];
+endif;
+
+//getppid system call
+if (sysCallNo == 12) then
+	//return value is PID of parent process of the current process
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 2];
+endif;
+
+//switching back to user stack
+SP = userSP;
+
+ireturn;

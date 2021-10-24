@@ -6,6 +6,14 @@ loadi(64,14);
 loadi(59,3);
 loadi(60,4);
 
+//Load INT15 module
+loadi(32,45);
+loadi(33,46);
+
+//Load INT11 module
+loadi(24,37);
+loadi(25,38);
+
 //Load INT10 module
 loadi(22,35);
 loadi(23,36);
