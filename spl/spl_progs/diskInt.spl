@@ -1,3 +1,6 @@
+//(S22_A3) increment number of kernel switches
+[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+
 //Switching to kernel stack and saving user process context
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
@@ -5,6 +8,9 @@ backup;
 
 //Setting status of disk to free
 [DISK_STATUS_TABLE] = 0;
+
+//(S22_A2) incrementing number of disk accesses
+[((82 + 1) * 512) - 3] = [((82 + 1) * 512) - 3] + 1;	
 
 //Setting state of all WAIT_DISK processes to READY
 alias PID R0;

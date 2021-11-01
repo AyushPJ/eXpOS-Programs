@@ -10,6 +10,14 @@ loadi(60,4);
 loadi(32,45);
 loadi(33,46);
 
+//Load INT14 module
+loadi(30,43);
+loadi(31,44);
+
+//Load INT13 module
+loadi(28,41);
+loadi(29,42);
+
 //Load INT11 module
 loadi(24,37);
 loadi(25,38);
@@ -84,6 +92,14 @@ loadi(51,64);
 loadi(61,2);
 
 alias counter R1;
+
+//Initializing Semaphore Table
+counter = 0;
+while (counter < 32) do
+	[SEMAPHORE_TABLE + (4 * counter)] = -1;
+	[SEMAPHORE_TABLE + (4 * counter) + 1] = 0;
+	counter = counter + 1;
+endwhile;
 
 //Initializing Memory Free List
 counter = 0;

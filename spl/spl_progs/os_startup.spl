@@ -58,6 +58,13 @@ PTBR = PAGE_TABLE_BASE;
 //entry point IP value fetched from top of stack for executing IDLE after IRET
 [81 * 512] = [69*512 + 1];
 
+//(S22_A2/S22_A3) storing number of context switches, process switches
+// at the end of user area page of IDLE process assuming it is left untouched by other operations
+[((82 + 1) * 512) - 1] = 0;	//context switches
+[((82 + 1) * 512) - 2] = 0;	//process switches
+[((82 + 1) * 512) - 3] = 0;	//disk accesses
+[((82 + 1) * 512) - 4] = 0;	//kernel switches
+
 //System Status Table (first process IDLE)
 [SYSTEM_STATUS_TABLE + 1] = 0;
 

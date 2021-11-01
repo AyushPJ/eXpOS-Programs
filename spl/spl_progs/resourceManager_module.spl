@@ -11,6 +11,73 @@ if (functionNum == 3) then
 	endwhile;
 	[DISK_STATUS_TABLE] = 1;
 	[DISK_STATUS_TABLE + 4] = currentPID;
+
+	return;
+endif;
+
+//Acquire Semaphore
+if (functionNum == 6) then
+	alias PID R2;
+
+	//finding free entry in semaphore table
+	alias counter R6;
+	counter = 0;
+	while (counter < 32) do
+		//checking if process count is 0
+		if ([SEMAPHORE_TABLE + (counter * 4) + 1] == 0) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//no free entry found
+	if (counter == 32) then
+		//return value is -1
+		R0 = -1;
+		return;
+	endif;
+
+	//free entry found
+	
+	//setting process count to 1
+	[SEMAPHORE_TABLE + (counter * 4) + 1] = 1;
+	//setting locking pid to -1
+	[SEMAPHORE_TABLE + (counter * 4)] = -1;
+	
+	//return value is semaphore table index
+	R0 = counter;
+
+	return;
+endif;
+
+//Release Semaphore
+if (functionNum == 7) then
+	
+	alias semIndex R2;
+	alias PID R3;
+
+	//semaphore locked by current process
+	if ([SEMAPHORE_TABLE + (semIndex * 4)] == PID) then
+		//setting locking PID to -1
+		[SEMAPHORE_TABLE + (semIndex * 4)] = -1;
+
+		//waking up all process blocked by the semaphore
+		alias counter R6;
+		alias procTable R7;
+		counter = 0;
+		while (counter < 16) do
+			procTable = PROCESS_TABLE + (counter * 16);
+			//checking if state of process is (WAIT_SEMAPHORE, semIndex)
+			if ([procTable + 4] == WAIT_SEMAPHORE && [procTable + 5] == semIndex) then
+				[procTable + 4] = READY;
+			endif;
+			counter = counter + 1;
+		endwhile;
+	endif;
+
+	//decrementing process count of semaphore
+	[SEMAPHORE_TABLE + (semIndex * 4) + 1] = [SEMAPHORE_TABLE + (semIndex * 4) + 1] - 1;
+
 	return;
 endif;
 

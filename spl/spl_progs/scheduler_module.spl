@@ -2,6 +2,13 @@
 alias currentPID R0;
 currentPID = [SYSTEM_STATUS_TABLE + 1];
 
+//(S22_A2/S22_A3) incrementing number of context switches
+[(82 + 1) * 512 - 1] = [(82+1) * 512 - 1] + 1;
+
+//(S22_A2/S22_A3) for tracking process switches
+alias prevPID R10;
+prevPID = currentPID;
+  
 SP = SP + 1;
 [SP] = BP;
 
@@ -37,6 +44,11 @@ endwhile;
 //No READY or CREATED process found. Switch to idle
 if(nextPID == currentPID && ([PROCESS_TABLE + (nextPID * 16) + 4] != READY && [PROCESS_TABLE + (nextPID * 16) + 4] != CREATED)) then
 	nextPID = 0;
+endif;
+
+//(S22_A2/S22_A3) process switch: increment process switch count
+if (prevPID != nextPID) then
+	[((82 + 1) * 512) - 2] = [((82 + 1) * 512) - 2] + 1;
 endif;
 
 //Restoring new process details

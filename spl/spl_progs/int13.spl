@@ -1,0 +1,150 @@
+//(S22_A3) increment number of kernel switches
+[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+
+//Saving user SP and switching to kernel stack
+alias userSP R10;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//extracting system call number from user stack
+alias sysCallNo R11;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+//semget system call
+if (sysCallNo == 17) then
+	
+	alias procTable R12;
+	procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+	//changing MODE FLAG to system call number (i.e. 17 for semget)
+	[procTable + 9] = 17;
+	
+	//finding free entry in per process resource table
+
+	alias freeIndex R13;
+	alias counter R6;
+	counter = 0;
+	while(counter < 8) do
+		//free entry
+		if ([(([procTable + 11] + 1) * 512) - 16 + (2 * counter)] == -1) then
+			//allocate to semaphore
+			[(([procTable + 11] + 1) * 512) - 16 + (2 * counter)] = SEMAPHORE;
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	//no free entry
+	if (counter == 8) then
+		//return value is -1
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	freeIndex = counter;
+	
+	alias semTableIndex R14;
+	//calling acquire semaphore function in resource manager module
+	multipush(R10, R11, R12, R13);
+	R1 = ACQUIRE_SEMAPHORE;		//function number
+	R2 = [SYSTEM_STATUS_TABLE + 1];	//PID
+	call RESOURCE_MANAGER;
+	semTableIndex = R0;		//return value
+	multipop(R10, R11, R12, R13);
+
+	//no free entry in semaphore table
+	if (semTableIndex == -1) then
+		//return value is -2
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//attaching semaphore to process by storing semaphore table index in per-process resource table entry
+	[(([procTable + 11] + 1) * 512) - 16 + (2 * freeIndex) + 1] = semTableIndex;
+
+	//return value is per-process resource table index
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = freeIndex;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+			
+endif;
+
+//semrelease system call
+if (sysCallNo == 18) then
+	
+	alias procTable R12;
+	procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+	//changing MODE FLAG to system call number (i.e. 18 for semrelease)
+	[procTable + 9] = 18;
+	
+	//extracting semaphore descriptor from user stack
+	alias semDesc R13;
+	semDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	//checking invalid cases
+	if (semDesc > 7 || semDesc < 0							//invalid semaphore descriptor
+		|| [(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc)] != SEMAPHORE	//per-process resource table entry is not valid
+	) then
+		
+		//return value is -1
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//calling release semaphore function in resource manager
+	multipush(R10, R11, R12, R13);
+	R1 = RELEASE_SEMAPHORE;						//function number
+	R2 = [(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc) + 1];	//semaphore table index
+	R3 = [SYSTEM_STATUS_TABLE + 1];					//PID
+	call RESOURCE_MANAGER;
+	multipop(R10, R11, R12, R13);
+
+	//invalidating per-process resource table entry
+	[(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc)] = -1;
+
+	//return value is 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+
+endif;
+
+//switching back to user stack
+SP = userSP;
+
+ireturn;

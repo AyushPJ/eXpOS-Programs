@@ -1,0 +1,12 @@
+//(S22_A3) increment number of kernel switches
+[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+
+print "Contxt Switch";
+print [((82 + 1) * 512) - 1];
+print "Proc Switch";
+print [((82 + 1) * 512) - 2];
+print "Disk Access";
+print [((82 + 1) * 512) - 3];
+print "Kernel Switch";
+print [((82 + 1) * 512) - 4];
+halt;

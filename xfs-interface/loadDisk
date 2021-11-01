@@ -14,6 +14,8 @@ load --int=8 $EXP_OS/spl/spl_progs/int8.xsm
 load --int=9 $EXP_OS/spl/spl_progs/int9.xsm
 load --int=10 $EXP_OS/spl/spl_progs/int10.xsm
 load --int=11 $EXP_OS/spl/spl_progs/int11.xsm
+load --int=13 $EXP_OS/spl/spl_progs/int13.xsm
+load --int=14 $EXP_OS/spl/spl_progs/int14.xsm
 load --int=15 $EXP_OS/spl/spl_progs/int15.xsm
 load --exhandler $EXP_OS/spl/spl_progs/exception.xsm
 load --library $EXP_OS/expl/library.lib

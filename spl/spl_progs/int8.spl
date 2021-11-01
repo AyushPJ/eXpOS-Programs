@@ -1,3 +1,6 @@
+//(S22_A3) increment number of kernel switches
+[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+
 //Saving user SP and switching to kernel stack
 alias userSP R10;
 userSP = SP;
@@ -101,8 +104,18 @@ multipop(R10, R11, R13, R14);
 alias counter R6;
 counter = 0;
 while(counter < 8) do
+	
+	//resource is a semaphore
+	if ([(([parentProcTable + 11] + 1) * 512) - 16 + (2 * counter)] == SEMAPHORE) then	
+		//increment process count in semaphore table
+		alias semTableIndex R7;
+		semTableIndex = [(([parentProcTable + 11] + 1) * 512) - 16 + (2 * counter) + 1];
+		[SEMAPHORE_TABLE + (4 * semTableIndex) + 1] = [SEMAPHORE_TABLE + (4 * semTableIndex) + 1] + 1;
+	endif;
+
 	[(([childProcTable + 11] + 1) * 512) - 16 + (2 * counter)] = [(([parentProcTable + 11]  + 1) * 512) - 16 + (2 * counter)];
 	[(([childProcTable + 11] + 1) * 512) - 16 + (2 * counter) + 1] = [(([parentProcTable + 11]  + 1) * 512) - 16 + (2 * counter) + 1];
+
 	counter = counter + 1;
 endwhile;
 

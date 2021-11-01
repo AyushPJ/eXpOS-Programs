@@ -1,0 +1,159 @@
+//(S22_A3) increment number of kernel switches
+[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+
+//Saving user SP and switching to kernel stack
+alias userSP R10;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//extracting system call number from user stack
+alias sysCallNo R11;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+//semlock system call
+if (sysCallNo == 19) then
+	
+	alias procTable R12;
+	procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+	//changing MODE FLAG to system call number (i.e. 19 for semlock)
+	[procTable + 9] = 19;
+	
+	//extracting semaphore descriptor from user stack
+	alias semDesc R13;
+	semDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	//checking invalid cases
+	if (semDesc > 7 || semDesc < 0							//invalid semaphore descriptor
+		|| [(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc)] != SEMAPHORE	//per-process resource table entry is not valid
+	) then	
+		//return value is -1
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias semTableIndex R14;
+	semTableIndex = [(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc) + 1];
+
+	//semaphore is locked by another process
+	while ([SEMAPHORE_TABLE + (4 * semTableIndex)] != -1 && [SEMAPHORE_TABLE + (4 * semTableIndex)] != [SYSTEM_STATUS_TABLE + 1]) do
+		//changing state of current process to (WAIT_SEMAPHORE, semTableIndex)
+		[procTable + 4] = WAIT_SEMAPHORE;
+		[procTable + 5] = semTableIndex;
+		
+		multipush(R10, R11, R12, R13, R14);
+		call SCHEDULER;
+		multipop(R10, R11, R12, R13, R14);
+
+	endwhile;
+
+	//semaphore free for locking
+
+	// changing locking PID in semaphore table entry to PID of current process
+	[SEMAPHORE_TABLE + (4 * semTableIndex)] = [SYSTEM_STATUS_TABLE + 1];
+
+	//return value is 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+			
+endif;
+
+//semunlock system call
+if (sysCallNo == 20) then
+	breakpoint;	
+	alias procTable R12;
+	procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+	//changing MODE FLAG to system call number (i.e. 20 for semunlock)
+	[procTable + 9] = 20;
+	
+	//extracting semaphore descriptor from user stack
+	alias semDesc R13;
+	semDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	//checking invalid cases
+	if (semDesc > 7 || semDesc < 0							//invalid semaphore descriptor
+		|| [(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc)] != SEMAPHORE	//per-process resource table entry is not valid
+	) then	
+		//return value is -1
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias semTableIndex R14;
+	semTableIndex = [(([procTable + 11] + 1) * 512) - 16 + (2 * semDesc) + 1];
+
+	//semaphore is locked
+	if ([SEMAPHORE_TABLE + (4 * semTableIndex)] != -1) then
+		
+		if ([SEMAPHORE_TABLE + (4 * semTableIndex)] != [SYSTEM_STATUS_TABLE + 1]) then	//semaphore is not locked by current process
+			//return value is -2
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -2;
+
+			//resetting MODE FLAG
+			[procTable + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+		else	//semaphore is locked by current process
+			
+			//setting locking PID of semTableIndex to -1
+			[SEMAPHORE_TABLE + (4 * semTableIndex)] = -1;
+
+			//waking up all processes waiting on semaphore locked by current process
+			alias counter R6;
+			counter = 0;
+			while (counter < 16) do
+				
+				//checking if state of process is (WAIT_SEMAPHORE, semTableIndex)
+				if ([PROCESS_TABLE + (counter * 16) + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + (counter * 16) + 5] == semTableIndex) then
+					
+					//change state to READY
+					[PROCESS_TABLE + (counter * 16) + 4] = READY;
+				endif;
+				counter = counter + 1;
+			endwhile;
+		endif;		
+	endif;
+
+	//return value is 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+			
+endif;
+
+//switching back to user stack
+SP = userSP;
+
+ireturn;
