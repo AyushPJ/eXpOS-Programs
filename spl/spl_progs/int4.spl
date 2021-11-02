@@ -1,0 +1,264 @@
+//Saving user SP and switching to kernel stack
+alias userSP R10;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//extracting system call number from user stack
+alias sysCallNo R11;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+alias procTable R12;
+procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+//extracting filename from user stack	
+alias filename R13;
+filename = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+alias retAddr R9;
+retAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+//create system call
+if (sysCallNo == 1) then
+	
+	//changing MODE FLAG to system call number (i.e. 1 for create)
+	[procTable + 9] = 1;
+	
+	//extracting permission from user stack	
+	alias permission R14;
+	permission = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+
+	//finding file entry in inode table
+	alias counter R6;
+	counter = 0;
+	while(counter < 60) do
+		//file found
+		if ([INODE_TABLE + (counter * 16) + 1] == filename) then
+			//return value is 0
+			[retAddr] = 0;
+
+			//resetting MODE FLAG
+			[procTable + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//file not found
+	//finding free entry in inode table
+	counter = 0;
+	while(counter < 60) do
+		//free entry found
+		if ([INODE_TABLE + (counter * 16) + 1] == -1) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	//no free entry
+	if (counter == 60) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//allocating free entry to new file
+	//index of free entry already in R6	
+	alias freeIndex R6;
+	alias inodeTableEntry R7;
+	inodeTableEntry = INODE_TABLE + (freeIndex * 16);
+	//setting file type, file name, and file size in inode table
+	[inodeTableEntry + 0] = DATA;	
+	[inodeTableEntry + 1] = filename;
+	[inodeTableEntry + 2] = 0;
+
+	//setting block numbers to -1 as no disk blocks are allocated to the file
+	[inodeTableEntry + 8] = -1;	
+	[inodeTableEntry + 9] = -1;	
+	[inodeTableEntry + 10] = -1;	
+	[inodeTableEntry + 11] = -1;
+
+	//setting user ID and permission
+	[inodeTableEntry + 3] = [procTable + 3];
+	[inodeTableEntry + 4] = permission;	
+	
+	//updating all the fields in corresponding root file entry
+	alias rootFileEntry R7;
+	rootFileEntry = ROOT_FILE + (freeIndex * 8);
+	[rootFileEntry + 0] = filename;
+	[rootFileEntry + 1] = 0;
+	[rootFileEntry + 2] = DATA;
+	[rootFileEntry + 3] = [procTable + 3];
+	[rootFileEntry + 4] = permission;
+
+	//return value is 0
+	[retAddr] = 0;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+
+endif;
+
+//delete system call
+if (sysCallNo == 4) then
+	
+	//changing MODE FLAG to system call number (i.e. 4 for delete)
+	[procTable + 4] = 4;
+		
+	//finding file entry in inode table
+	alias counter R6;
+	counter = 0;
+	while(counter < 60) do
+		//file found
+		if ([INODE_TABLE + (counter * 16) + 1] == filename) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//file not found
+	if (counter == 60) then
+		//return value is 0
+		[retAddr] = 0;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias inodeIndex R7;
+	inodeIndex = counter;
+	alias inodeTableEntry R8;
+	inodeTableEntry = INODE_TABLE + (inodeIndex * 16);	
+	//file found but type not DATA
+	if ([inodeTableEntry + 0] != DATA) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//file found but exclusive permission set
+	if ([inodeTableEntry + 4] == 0) then
+		//user not root and user not owner
+		if ([procTable + 3] != 1
+			&& [inodeTableEntry + 3] != [procTable + 3]
+		) then
+			//return value is -1
+			[retAddr] = -1;
+
+			//resetting MODE FLAG
+			[procTable + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+		endif;
+	endif;
+	
+	//acquiring lock on file by calling acquire inode
+	multipush(R7, R8, R9, R10, R11, R12, R13);
+	R1 = ACQUIRE_INODE;	//function number
+	R2 = inodeIndex;	//Inode table index
+	R3 = [procTable + 1]; 	//PID
+	call RESOURCE_MANAGER;
+	multipop(R7, R8, R9, R10, R11, R12, R13);
+	
+	//checking file open count in File Status Table
+	if ([FILE_STATUS_TABLE + (inodeIndex * 4) + 1] != -1) then
+		//file open, cannot be deleted
+
+		//releasing lock
+		[FILE_STATUS_TABLE + (inodeIndex * 4)] = -1;
+
+		//return value is -2
+		[retAddr] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//releasing allocated disk blocks
+	alias blockNo R5;	
+	counter = 0;
+	while (counter < 4) do
+		blockNo = [inodeTableEntry + 8 + counter];
+		//block allocated
+		if (blockNo != -1) then
+			//checking buffer table for block
+			if ([BUFFER_TABLE + (4 * (blockNo % 4))] == blockNo) then
+				//if dirty bit set, resetting it
+				if ([BUFFER_TABLE + (4 * (blockNo % 4)) + 1] == 1) then
+					[BUFFER_TABLE + (4 * (blockNo % 4)) + 1] = 0;
+				endif;
+			endif;
+			
+			//releasing allocated block by calling release block function
+			multipush(R5, R6, R7, R8, R9, R10, R11, R12, R13);
+			R1 = RELEASE_BLOCK;	//function number
+			R2 = blockNo;		//block number
+			R3 = [procTable + 1];	//PID
+			call MEMORY_MANAGER;
+			multipop(R5, R6, R7, R8, R9, R10, R11, R12, R13);
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	//invalidating inode table entry
+	[inodeTableEntry + 1] = -1;
+
+	//invalidating corresponding root file entry	
+	[ROOT_FILE + (inodeIndex * 8)] = -1;
+
+	//releasing lock on file by calling release inode
+	multipush(R7, R9, R10, R11, R12, R13);
+	R1 = RELEASE_INODE;	//function number
+	R2 = inodeIndex;	//Inode table index
+	R3 = [procTable + 1]; 	//PID
+	call RESOURCE_MANAGER;
+	multipop(R7, R9, R10, R11, R12, R13);
+	
+	//return value is 0
+	[retAddr] = 0;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+
+endif;

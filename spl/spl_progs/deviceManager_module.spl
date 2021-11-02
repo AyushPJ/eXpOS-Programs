@@ -1,6 +1,32 @@
 alias functionNum R1;
 alias currentPID R2;
 
+//Disk Store
+if (functionNum == 1) then
+	//Calling Acquire Disk
+	multipush(R1, R2, R3, R4);
+	functionNum = 3;
+	call RESOURCE_MANAGER;
+	multipop(R1, R2, R3, R4);
+	
+	alias pageNo R3;
+	alias blockNo R4;
+	
+	//Setting Load/Store Bit, setting Page no. and block no. in Disk Status Table
+	[DISK_STATUS_TABLE + 1] = 1;
+	[DISK_STATUS_TABLE + 2] = pageNo;
+	[DISK_STATUS_TABLE + 3] = blockNo;
+	store([DISK_STATUS_TABLE + 2], [DISK_STATUS_TABLE + 3]);
+
+	//setting process state to WAIT_DISK
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_DISK;
+
+	call SCHEDULER;
+	
+	return;
+endif;
+		
+
 //Disk Load
 if (functionNum == 2) then
 	//Calling Acquire Disk

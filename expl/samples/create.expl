@@ -1,0 +1,26 @@
+int main()
+{
+    decl
+        int temp, permission;
+	string fname;
+    enddecl
+
+    begin
+	
+	temp = exposcall("Write", -2, "File Name:");	
+	temp = exposcall("Read", -1, fname);
+	
+	temp = exposcall("Write", -2, "Perm(0/1):");	
+	temp = exposcall("Read", -1, permission);
+        
+	temp = exposcall("Create", fname, permission);
+	if (temp == -1) then
+		temp = exposcall("Write", -2, "Err: No space");
+	else 
+		temp = exposcall("Write", -2, "Success");
+	endif;
+        return 0;
+    end
+}
+
+

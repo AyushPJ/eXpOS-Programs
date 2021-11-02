@@ -1,8 +1,8 @@
 alias functionNum R1;
-alias currentPID R2;
 
 //Acquire Disk
 if (functionNum == 3) then
+	alias currentPID R2;
 	while([DISK_STATUS_TABLE] == 1) do
 		[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_DISK;
 		multipush(R1, R2);
@@ -14,6 +14,69 @@ if (functionNum == 3) then
 
 	return;
 endif;
+
+//Acquire Inode
+if (functionNum == 4) then
+	alias inodeIndex R2;
+	alias PID R3;
+
+	//file locked by another process
+	while ([FILE_STATUS_TABLE + (4 * inodeIndex)] != -1) do
+		//set state of current process to (WAIT_FILE, inode index)
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_FILE;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 5] = inodeIndex;
+		call SCHEDULER;
+	endwhile;
+
+	//if file was deleted
+	if ([INODE_TABLE + (inodeIndex * 16) + 1] == -1) then
+		//return -1
+		R0 = -1;
+		return;
+	endif;
+
+	//locking the file
+	[FILE_STATUS_TABLE + (4 * inodeIndex)] = PID;
+
+	//return 0
+	R0 = 0;
+	return;
+endif;
+
+//Release Inode
+if (functionNum == 5) then
+	alias inodeIndex R2;
+	alias PID R3;
+	
+	//file not locked by current process
+	if ([FILE_STATUS_TABLE + (4 * inodeIndex)] != PID) then
+		//return -1
+		R0 = -1;
+		return;
+	endif;
+
+	//releasing lock on file
+	[FILE_STATUS_TABLE + (4 * inodeIndex)] = -1;
+
+	//waking up all process waiting for file
+	alias counter R6;
+	while (counter < 16) do
+		//process state is (WAIT_FILE, inode index)
+		if ([PROCESS_TABLE + (counter * 16) + 4] == WAIT_FILE
+			&& [PROCESS_TABLE + (counter * 16) + 5] == inodeIndex
+		) then
+			//set the process' state to READY
+			[PROCESS_TABLE + (counter * 16) + 4] = READY;
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	//return 0
+	R0 = 0;
+	
+	return;
+endif;
+	
 
 //Acquire Semaphore
 if (functionNum == 6) then
@@ -83,6 +146,7 @@ endif;
 
 //Acquire Terminal
 if (functionNum == 8) then
+	alias currentPID R2;
 	while([TERMINAL_STATUS_TABLE] == 1) do
 		[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_TERMINAL;
 		multipush(R1, R2);
@@ -96,6 +160,7 @@ endif;
 
 //Release Terminal
 if (functionNum == 9) then
+	alias currentPID R2;
 	if ([TERMINAL_STATUS_TABLE + 1] != currentPID) then
 		alias retValue R0;
 		retValue = -1;

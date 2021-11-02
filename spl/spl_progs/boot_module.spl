@@ -6,6 +6,9 @@ loadi(64,14);
 loadi(59,3);
 loadi(60,4);
 
+//Load Root File
+loadi(62,5);
+
 //Load INT15 module
 loadi(32,45);
 loadi(33,46);
@@ -41,6 +44,10 @@ loadi(17,30);
 //Load INT6 module
 loadi(14,27);
 loadi(15,28);
+
+//Load INT4 module
+loadi(10,23);
+loadi(11,24);
 
 //Load exception handler
 loadi(2,15);
@@ -92,6 +99,28 @@ loadi(51,64);
 loadi(61,2);
 
 alias counter R1;
+
+//Initializing File Status Table
+counter = 0;
+while (counter < 60) do
+	//setting locking PID and file open count to -1
+	[FILE_STATUS_TABLE + (4 * counter)] = -1;
+	[FILE_STATUS_TABLE + (4 * counter) + 1] = -1;
+	counter = counter + 1;
+endwhile;
+
+//Initializing Buffer Table
+counter = 0;
+while (counter < 4) do
+	//setting block number and locking PID to -1
+	[BUFFER_TABLE + (4 * counter)] = -1;
+	[BUFFER_TABLE + (4 * counter) + 2] = -1;
+	counter = counter + 1;
+
+	//setting dirty bit to 0
+	[BUFFER_TABLE + (4 * counter) + 1] = 0;
+	counter = counter + 1;
+endwhile;
 
 //Initializing Semaphore Table
 counter = 0;
@@ -167,6 +196,7 @@ PTBR = PAGE_TABLE_BASE+20;
 //Process Table
 procTable = PROCESS_TABLE + 16;
 [procTable + 1] = 1;
+[procTable + 3] = 1; 		//user ID is 1 (root)
 [procTable + 4] = CREATED;
 [procTable + 11] = 80;
 [MEMORY_FREE_LIST + 80] = 1;

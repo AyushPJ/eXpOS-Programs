@@ -1,12 +1,70 @@
-//(S22_A3) increment number of kernel switches
-[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+//Saving user SP and switching to kernel stack
+alias userSP R10;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 
-print "Contxt Switch";
-print [((82 + 1) * 512) - 1];
-print "Proc Switch";
-print [((82 + 1) * 512) - 2];
-print "Disk Access";
-print [((82 + 1) * 512) - 3];
-print "Kernel Switch";
-print [((82 + 1) * 512) - 4];
+//setting MODE FLAG to system call number (i.e. 21 for shutdown)
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 21;
+
+//shutdown not invoked by shell or current user is not root
+if ([SYSTEM_STATUS_TABLE + 1] != 1					//PID not 1
+	|| [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1	//user ID not 1 (root)
+) then
+	//return value is -1
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+	
+	//resetting MODE FLAG
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+
+endif;
+
+//storing updated memory copies of disk data structures to disk
+multipush(R10);
+
+//storing inode table and user table
+R1 = DISK_STORE;			//function number
+R2 = [SYSTEM_STATUS_TABLE + 1];		//PID
+R3 = 59;				//page number (Part 1 of inode table)
+R4 = 3;					//block number
+call DEVICE_MANAGER;
+R1 = DISK_STORE;			//function number
+R2 = [SYSTEM_STATUS_TABLE + 1];		//PID
+R3 = 60;				//page number (Part 2 of inode table + user table)
+R4 = 4;					//block number
+call DEVICE_MANAGER;
+
+//storing root file
+R1 = DISK_STORE;			//function number
+R2 = [SYSTEM_STATUS_TABLE + 1];		//PID
+R3 = 62;				//page number
+R4 = 5;					//block number
+call DEVICE_MANAGER;
+
+//storing disk free list
+R1 = DISK_STORE;			//function number
+R2 = [SYSTEM_STATUS_TABLE + 1];		//PID
+R3 = 61;				//page number
+R4 = 2;					//block number
+call DEVICE_MANAGER;
+
+multipop(R10);
+
+////(S22_A3) increment number of kernel switches
+//[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
+//
+//print "Contxt Switch";
+//print [((82 + 1) * 512) - 1];
+//print "Proc Switch";
+//print [((82 + 1) * 512) - 2];
+//print "Disk Access";
+//print [((82 + 1) * 512) - 3];
+//print "Kernel Switch";
+//print [((82 + 1) * 512) - 4];
+
 halt;
