@@ -191,6 +191,21 @@ if (sysCallNo == 4) then
 	call RESOURCE_MANAGER;
 	multipop(R7, R8, R9, R10, R11, R12, R13);
 	
+	//file already deleted (return value of Acquire Inode)
+	if (R0 == -1) then
+		//return value is 0
+		[retAddr] = 0;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+			
+	
 	//checking file open count in File Status Table
 	if ([FILE_STATUS_TABLE + (inodeIndex * 4) + 1] != -1) then
 		//file open, cannot be deleted
