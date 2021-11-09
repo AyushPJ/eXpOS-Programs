@@ -1,5 +1,63 @@
 alias functionNum R1;
 
+//Acquire Buffer
+if (functionNum == 1) then
+	alias bufferNum R2;
+	alias PID R3;
+	alias bufferTableEntry R10;
+	bufferTableEntry = BUFFER_TABLE + (4 * bufferNum);
+	while([bufferTableEntry + 2] != -1) do
+		//setting process state to (WAIT_BUFFER, buffer number)
+		[PROCESS_TABLE + (PID * 16) + 4] = WAIT_BUFFER;
+		[PROCESS_TABLE + (PID * 16) + 5] = bufferNum;
+		multipush(R2, R3, R10);
+		call SCHEDULER;
+		multipop(R2, R3, R10);
+	endwhile;
+
+	//locking buffer by setting locking PID to PID of process
+	[bufferTableEntry + 2] = PID;
+
+	return;
+endif;
+
+//Release Buffer
+if (functionNum == 2) then
+	alias bufferNum R2;
+	alias PID R3;
+	alias bufferTableEntry R10;
+	bufferTableEntry = BUFFER_TABLE + (4 * bufferNum);
+
+	//PID given is not the locking PID
+	if (PID != [bufferTableEntry + 2]) then
+		//return value is -1
+		R0 = -1;
+		
+		return;
+	endif;
+
+	//releasing lock on buffer by setting locking PID to -1
+	[bufferTableEntry + 2] = -1;
+
+	//waking up all processes waiting for the buffer
+	alias counter R6;
+	counter = 0;
+	while(counter < 16) do
+		alias processTableEntry R11;
+		processTableEntry = PROCESS_TABLE + (counter * 16);
+		//process state is (WAIT_BUFFER, buffer number)
+		if ([processTableEntry + 4] == WAIT_BUFFER && [processTableEntry + 5] == bufferNum) then
+			[processTableEntry + 4] = READY;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//return value is 0
+	R0 = 0;
+
+	return;
+endif;
+
 //Acquire Disk
 if (functionNum == 3) then
 	alias currentPID R2;

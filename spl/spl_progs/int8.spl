@@ -112,6 +112,14 @@ while(counter < 8) do
 		semTableIndex = [(([parentProcTable + 11] + 1) * 512) - 16 + (2 * counter) + 1];
 		[SEMAPHORE_TABLE + (4 * semTableIndex) + 1] = [SEMAPHORE_TABLE + (4 * semTableIndex) + 1] + 1;
 	endif;
+	
+	//resource is a file
+	if ([(([parentProcTable + 11] + 1) * 512) - 16 + (2 * counter)] == FILE) then	
+		//increment open instance count in open file table
+		alias openFileTableIndex R7;
+		openFileTableIndex = [(([parentProcTable + 11] + 1) * 512) - 16 + (2 * counter) + 1];
+		[OPEN_FILE_TABLE + (4 * openFileTableIndex) + 1] = [OPEN_FILE_TABLE + (4 * openFileTableIndex) + 1] + 1;
+	endif;
 
 	[(([childProcTable + 11] + 1) * 512) - 16 + (2 * counter)] = [(([parentProcTable + 11]  + 1) * 512) - 16 + (2 * counter)];
 	[(([childProcTable + 11] + 1) * 512) - 16 + (2 * counter) + 1] = [(([parentProcTable + 11]  + 1) * 512) - 16 + (2 * counter) + 1];

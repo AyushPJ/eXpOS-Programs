@@ -16,11 +16,13 @@ if (funcNum == 1) then
 	if (counter == 16) then
 		retVal = -1;
 	else
+		alias procTableEntry R10;
+		procTableEntry = PROCESS_TABLE + (counter * 16);
 		//initializing PID, PTBR and PTLR entries in process table and setting STATE to ALLOCATED
-		[PROCESS_TABLE + (counter * 16) + 1] = counter;
-		[PROCESS_TABLE + (counter * 16) + 14] = PAGE_TABLE_BASE + (counter * 20);
-		[PROCESS_TABLE + (counter * 16) + 15] = 10;
-		[PROCESS_TABLE + (counter * 16) + 4] = ALLOCATED;
+		[procTableEntry + 1] = counter;
+		[procTableEntry + 14] = PAGE_TABLE_BASE + (counter * 20);
+		[procTableEntry + 15] = 10;
+		[procTableEntry + 4] = ALLOCATED;
 		retVal = counter;
 	endif;
 	return;
@@ -32,27 +34,42 @@ if (funcNum == 2) then
 	alias userAreaPageNo R7;
 	userAreaPageNo = [PROCESS_TABLE + (16 * PID) + 11];
 
-	//releasing semaphores
+	//releasing semaphores and closing files
+	alias resourceTable R10;
+	resourceTable = ((userAreaPageNo + 1) * 512) - 16;
 	alias counter R6;
 	counter = 0;
 	while (counter < 8) do
-		if([((userAreaPageNo + 1) * 512) - 16 + (2 * counter)] == SEMAPHORE) then
+		if([resourceTable + (2 * counter)] == SEMAPHORE) then
 			
 			//calling release semaphore
-			multipush(R1, R2, R6, R7);
+			multipush(R1, R2, R6, R7, R10);
 			R1 = RELEASE_SEMAPHORE;	//function number
-			R2 = [((userAreaPageNo + 1) * 512) - 16 + (2 * counter) + 1]; //semaphore table index
+			R2 = [resourceTable + (2 * counter) + 1]; //semaphore table index
 			R3 = [SYSTEM_STATUS_TABLE + 1];	//PID
 			call RESOURCE_MANAGER;
-			multipop(R1, R2, R6, R7);
+			multipop(R1, R2, R6, R7, R10);
 
 			//invalidating the per-process resource table entry
-			[((userAreaPageNo + 1) * 512) - 16 + (2 * counter)] = -1;
+			[resourceTable + (2 * counter)] = -1;
+
+		endif;
+		
+		if([resourceTable + (2 * counter)] == FILE) then
+			
+			//calling close function in file manager module
+			multipush(R1, R2, R6, R7, R10);
+			R1 = CLOSE;	//function number
+			R2 = [resourceTable + (2 * counter) + 1]; //open file table index
+			call FILE_MANAGER;
+			multipop(R1, R2, R6, R7, R10);
+
+			//invalidating the per-process resource table entry
+			[resourceTable + (2 * counter)] = -1;
 
 		endif;
 		counter = counter + 1;
 	endwhile;
-
 	//calling Release Page
 	multipush(R1, R2);
 	funcNum = RELEASE_PAGE;
@@ -97,7 +114,6 @@ if (funcNum == 3) then
 	endif;
 	
 	[PROCESS_TABLE + (16 * PID) + 4] = TERMINATED;
-	
 	return;
 endif;
 
@@ -113,57 +129,22 @@ if (funcNum == 4) then
 	//calling Release Page and invalidating page table entries for remaining pages
 	multipush(R1, R2);
 	alias pageNo R2;
-	funcNum = RELEASE_PAGE;
-	//Heap
-	pageNo = [PTBR + 4];
-	if(pageNo != -1) then
-		call MEMORY_MANAGER;
-		[PTBR + 4] = -1;
-		[PTBR + 5] = "0000";
-	endif;
-	pageNo = [PTBR + 6];
-	if(pageNo != -1) then
-		call MEMORY_MANAGER;
-		[PTBR + 6] = -1;
-		[PTBR + 7] = "0000";
-	endif;
-	//Code
-	pageNo = [PTBR + 8];
-	if(pageNo != -1) then
-		call MEMORY_MANAGER;
-		[PTBR + 8] = -1;
-		[PTBR + 9] = "0000";
-	endif;
-	pageNo = [PTBR + 10];
-	if(pageNo != -1) then
-		call MEMORY_MANAGER;
-		[PTBR + 10] = -1;
-		[PTBR + 11] = "0000";
-	endif;
-	pageNo = [PTBR + 12];
-	if(pageNo != -1) then
-		call MEMORY_MANAGER;
-		[PTBR + 12] = -1;
-		[PTBR + 13] = "0000";
-	endif;
-	pageNo = [PTBR + 14];
-	if(pageNo != -1) then
-		call MEMORY_MANAGER;
-		[PTBR + 14] = -1;
-		[PTBR + 15] = "0000";
-	endif;
-
-	//Stack
-	pageNo = [PTBR + 16];
-	call MEMORY_MANAGER;
-	[PTBR + 16] = -1;
-	[PTBR + 17] = "0000";
-	pageNo = [PTBR + 18];
-	call MEMORY_MANAGER;
-	[PTBR + 18] = -1;
-	[PTBR + 19] = "0000";
-
+	alias counter R6;
+	counter = 2;
+	while (counter < 10) do
+		funcNum = RELEASE_PAGE;
+		pageNo = [PTBR + (2*counter)];
+		if(pageNo != -1) then
+			multipush(R6);
+			call MEMORY_MANAGER;
+			multipop(R6);
+			[PTBR + (2 * counter)] = -1;
+			[PTBR + (2 * counter) + 1] = "0000";
+		endif;
+		counter = counter + 1;
+	endwhile;
 	multipop(R1, R2);
+
 	alias PID R2;
 	//calling Release Block and invalidating disk map table entries for stack and heap
 	//Heap

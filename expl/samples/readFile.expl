@@ -1,0 +1,43 @@
+int main()
+{
+    decl
+        int temp, fileDesc, eof;
+	string fname, ip;
+    enddecl
+
+    begin
+	
+	temp = exposcall("Write", -2, "File Name:");	
+	temp = exposcall("Read", -1, fname);
+	
+	fileDesc = exposcall("Open", fname);
+
+	if (fileDesc == -1) then
+		temp = exposcall("Write", -2, "Err: Bad file");
+	else 
+		if (fileDesc == -2) then
+			temp = exposcall("Write", -2, "Err: Open lim");
+		
+		else
+			if (fileDesc == -3) then
+				temp = exposcall("Write", -2, "Err: Resrc lim");
+			else
+				eof = exposcall("Read", fileDesc, ip);	
+				
+				if (eof == -1) then
+					temp = exposcall("Write", -2, "Err: invalid FD");
+				else	
+					while (eof != -2) do
+						temp = exposcall("Write", -2, ip);
+						eof = exposcall("Read", fileDesc, ip);
+					endwhile;
+				endif;
+			endif;
+		endif;
+
+	endif;	
+        return 0;
+    end
+}
+
+

@@ -2,6 +2,7 @@ load --os $EXP_OS/spl/spl_progs/os_startup.xsm
 load --module 0 $EXP_OS/spl/spl_progs/resourceManager_module.xsm
 load --module 1 $EXP_OS/spl/spl_progs/processManager_module.xsm
 load --module 2 $EXP_OS/spl/spl_progs/memoryManager_module.xsm
+load --module 3 $EXP_OS/spl/spl_progs/fileManager_module.xsm
 load --module 4 $EXP_OS/spl/spl_progs/deviceManager_module.xsm
 load --module 5 $EXP_OS/spl/spl_progs/scheduler_module.xsm
 load --module 7 $EXP_OS/spl/spl_progs/boot_module.xsm
@@ -9,6 +10,7 @@ load --int=timer $EXP_OS/spl/spl_progs/timer.xsm
 load --int=disk $EXP_OS/spl/spl_progs/diskInt.xsm
 load --int=console $EXP_OS/spl/spl_progs/consoleInt.xsm
 load --int=4 $EXP_OS/spl/spl_progs/int4.xsm
+load --int=5 $EXP_OS/spl/spl_progs/int5.xsm
 load --int=6 $EXP_OS/spl/spl_progs/int6.xsm
 load --int=7 $EXP_OS/spl/spl_progs/int7.xsm
 load --int=8 $EXP_OS/spl/spl_progs/int8.xsm

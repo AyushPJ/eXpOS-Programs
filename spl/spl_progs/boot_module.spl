@@ -45,6 +45,10 @@ loadi(17,30);
 loadi(14,27);
 loadi(15,28);
 
+//Load INT5 module
+loadi(12,25);
+loadi(13,26);
+
 //Load INT4 module
 loadi(10,23);
 loadi(11,24);
@@ -87,6 +91,10 @@ loadi(43,56);
 loadi(44,57);
 loadi(45,58);
 
+//Load File Manager (MOD_3)
+loadi(46,59);
+loadi(47,60);
+
 //Load Device Manager (MOD_4)
 loadi(48,61);
 loadi(49,62);
@@ -100,6 +108,15 @@ loadi(61,2);
 
 alias counter R1;
 
+//Initializing Open File Table
+counter = 0;
+while (counter < 32) do
+	//setting inode index to -1 and open instance count to 0
+	[OPEN_FILE_TABLE + (4 * counter)] = -1;
+	[OPEN_FILE_TABLE + (4 * counter) + 1] = 0;
+	counter = counter + 1;
+endwhile;
+
 //Initializing File Status Table
 counter = 0;
 while (counter < 60) do
@@ -109,13 +126,13 @@ while (counter < 60) do
 	counter = counter + 1;
 endwhile;
 
+
 //Initializing Buffer Table
 counter = 0;
 while (counter < 4) do
 	//setting block number and locking PID to -1
 	[BUFFER_TABLE + (4 * counter)] = -1;
 	[BUFFER_TABLE + (4 * counter) + 2] = -1;
-	counter = counter + 1;
 
 	//setting dirty bit to 0
 	[BUFFER_TABLE + (4 * counter) + 1] = 0;
@@ -138,8 +155,8 @@ while (counter < 76) do
 endwhile;
 
 while (counter < 128) do
-	counter  = counter + 1;
 	[MEMORY_FREE_LIST + counter] = 0;
+	counter  = counter + 1;
 endwhile;
 
 //Initializing Terminal Status to free, i.e., 0
@@ -235,6 +252,5 @@ endwhile;
 [SYSTEM_STATUS_TABLE + 3] = 0;
 //(Total - Reserved - Allocated) 
 [SYSTEM_STATUS_TABLE + 2] = 128 - 76 - 7;
-
 
 return;

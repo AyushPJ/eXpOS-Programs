@@ -1,0 +1,159 @@
+//Saving user SP and switching to kernel stack
+alias userSP R9;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+alias procTable R10;
+procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+alias retAddr R12;
+retAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+//extracting system call number from user stack
+alias sysCallNo R13;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+
+//open system call
+if (sysCallNo == 2) then
+	
+	//changing MODE FLAG to system call number (i.e. 2 for open)
+	[procTable + 9] = 2;
+
+	//extracting filename from user stack	
+	alias filename R11;
+	filename = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	//finding free entry in per-process resource table
+	alias counter R6;
+	counter = 0;
+	alias resourceTableBase R7;
+	resourceTableBase = (([procTable + 11] + 1) * 512) - 16;
+	while(counter < 8) do
+		//free entry found
+		if ([resourceTableBase + (2*counter)] == -1) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//free entry not found
+	if (counter == 8) then
+		//return value is -1
+		[retAddr] = -3;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias resourceTableIndex R13;
+	resourceTableIndex = counter;
+
+	//calling open function in File Manager module
+	multipush(R7, R9, R10, R11, R12, R13);
+	R1 = OPEN;	//function number
+	R2 = filename;	//file name
+	call FILE_MANAGER;
+	multipop(R7, R9, R10, R11, R12, R13);
+	
+	//open failed
+	if (R0 == -1 || R0 == -2) then
+		//return value is error code returned by open
+		[retAddr] = R0;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//setting per-process resource table entry
+	[resourceTableBase + (2 * resourceTableIndex)] = FILE;		//resource identifier
+	[resourceTableBase + (2 * resourceTableIndex) + 1] = R0; 	//open file table index
+	
+	//return value is per-process resource table entry index
+	[retAddr] = resourceTableIndex;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+
+endif;
+
+//close system call
+if (sysCallNo == 3) then
+	
+	//changing MODE FLAG to system call number (i.e. 3 for close)
+	[procTable + 4] = 3;
+
+	//extracting file descriptor from user stack	
+	alias fileDesc R11;
+	fileDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	//invalid file descriptor
+	if (fileDesc < 0 || fileDesc > 7) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+		
+	alias resourceTableEntry R13;
+	resourceTableEntry = ([procTable + 11] * 512) + RESOURCE_TABLE_OFFSET + (2 * fileDesc);
+	
+	if ([resourceTableEntry] == -1			//invalid resource identifier
+		|| [resourceTableEntry] != FILE		//resource not a file
+	) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+	
+	//calling close function in File Manager module
+	multipush(R9, R10, R11, R12, R13);
+	R1 = CLOSE;			//function number
+	R2 = [resourceTableEntry + 1];	//open file table entry index
+	call FILE_MANAGER;
+	multipop(R9, R10, R11, R12, R13);
+	
+	//invalidating per-process resource table entry
+	[resourceTableEntry] = -1;	
+
+	//return value is 0
+	[retAddr] = 0;
+		
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+
+endif;
