@@ -7,9 +7,9 @@ SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 //setting MODE FLAG to system call number (i.e. 21 for shutdown)
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 21;
 
-//shutdown not invoked by shell or current user is not root
-if ([SYSTEM_STATUS_TABLE + 1] != 1					//PID not 1
-	|| [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1	//user ID not 1 (root)
+//shutdown not invoked by shell and current user is not root
+if ([SYSTEM_STATUS_TABLE + 1] != 2					//PID not 2
+	&& [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1	//user ID not 1 (root)
 ) then
 	//return value is -1
 	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
@@ -24,6 +24,33 @@ if ([SYSTEM_STATUS_TABLE + 1] != 1					//PID not 1
 
 endif;
 
+//killing all processes except idle, init and current process using kill all
+multipush(R10);
+R1 = KILL_ALL;			//function number
+R2 = [SYSTEM_STATUS_TABLE + 1];	//PID
+call PROCESS_MANAGER;
+multipop(R10);
+
+
+//storing dirty pages in buffer back to disk
+alias bufferNum R6;
+bufferNum = 0;
+while (bufferNum < 4) do
+	//buffer is dirty
+	if ([BUFFER_TABLE + (4 * bufferNum) + 1] == 1) then
+		//storing in disk using disk store
+		multipush(R10, R6);
+		R1 = DISK_STORE;			//function number
+		R2 = [SYSTEM_STATUS_TABLE + 1];		//PID
+		R3 = 71 + bufferNum;			//page number
+		R4 = [BUFFER_TABLE + (4 * bufferNum)];	//block number
+		call DEVICE_MANAGER;
+		multipop(R10, R6);
+	endif;
+	bufferNum = bufferNum + 1;
+endwhile;
+
+		
 //storing updated memory copies of disk data structures to disk
 multipush(R10);
 

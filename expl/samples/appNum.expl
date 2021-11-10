@@ -1,0 +1,77 @@
+int main()
+{
+    decl
+        int temp, fileDesc, num, seekRet;
+	string fname;
+    enddecl
+
+    begin
+	
+	temp = exposcall("Write", -2, "File Name:");	
+	temp = exposcall("Read", -1, fname);
+	
+	fileDesc = exposcall("Open", fname);
+
+	if (fileDesc == -1) then
+		temp = exposcall("Write", -2, "Err: Bad File");
+	else if (fileDesc == -2) then	
+		temp = exposcall("Write", -2, "Err: Open lim");
+	else if (fileDesc == -3) then
+		temp = exposcall("Write", -2, "Err: Resrc lim");
+	else
+		//seek to end of file	
+		seekRet = exposcall("Seek", fileDesc, 2048);
+
+		//appending numbers 2000 to 2513 to file
+		num = 2000;
+		while (num <= 2513) do
+			temp = exposcall("Write", fileDesc, num);
+			if (temp == -1) then
+				temp = exposcall("Write", -2, "Err: Invalid FD");
+				break;
+			else if (temp == -2) then
+				temp = exposcall("Write", -2, "Err: No space");
+				break;
+			else if (temp == -3) then
+				temp = exposcall("Write", -2, "Err: Denied");
+				break;
+			endif;
+			endif;
+			endif;
+			num = num + 1;
+		endwhile;
+		if (num == 2514) then
+			temp = exposcall("Write", -2, "Append OK");
+		
+			//printing in reverse order
+		
+			//seek to end of file
+			seekRet = exposcall("Seek", fileDesc, 2048);
+			seekRet = exposcall("Seek", fileDesc, -1);
+			if (seekRet == -1) then
+				temp = exposcall("Write", -2, "Err: Invalid FD");
+			else if (seekRet == -2) then
+				temp = exposcall("Write", -2, "Err: File empty");	
+			else 
+				temp = exposcall("Read", fileDesc, num);
+				while (seekRet != -2) do
+					temp = exposcall("Write", -2, num);
+					seekRet = exposcall("Seek", fileDesc,-2);
+					temp = exposcall("Read", fileDesc, num);
+				endwhile;
+					
+				temp = exposcall("Write", -2, "Read done");
+			endif;
+			endif;
+		else
+			temp = exposcall("Write", -2, "Append Fail");
+		endif;
+			
+	endif;
+	endif;
+	endif;
+        return 0;
+    end
+}
+
+

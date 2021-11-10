@@ -1,0 +1,52 @@
+int main()
+{
+    decl
+        int temp, fileDesc, eof;
+	string fname;
+    enddecl
+
+    begin
+	
+	
+	fileDesc = exposcall("Open", "root");
+
+	if (fileDesc == -1) then
+		temp = exposcall("Write", -2, "Err: Bad file");
+	else 
+		if (fileDesc == -2) then
+			temp = exposcall("Write", -2, "Err: Open lim");
+		
+		else
+			if (fileDesc == -3) then
+				temp = exposcall("Write", -2, "Err: Resrc lim");
+			else
+				eof = exposcall("Read", fileDesc, fname);	
+				
+				if (eof == -1) then
+					temp = exposcall("Write", -2, "Err: invalid FD");
+				else	
+					while (eof != -2) do
+						if (fname != "-1") then
+							temp = exposcall("Write", -2, fname);
+						endif;
+						temp = exposcall("Seek", fileDesc, 7);
+						if (temp == -1) then
+							temp = exposcall("Write", -2, "Err: invalid FD");
+							break;
+						endif;
+						if (temp == -2) then
+							temp = exposcall("Write", -2, "Err: offset out");
+							break;
+						endif;
+						eof = exposcall("Read", fileDesc, fname);
+					endwhile;
+				endif;
+			endif;
+		endif;
+
+	endif;	
+        return 0;
+    end
+}
+
+

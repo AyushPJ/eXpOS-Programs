@@ -58,6 +58,37 @@ if (funcNum == 2) then
 	return;
 endif;
 
+//Get Free Block
+if (funcNum == 3) then
+	alias blockNo R6;
+	blockNo = DISK_FREE_AREA;
+
+	//searching disk free list for free block
+	while (blockNo < DISK_SWAP_AREA) do
+		//found free block
+		if ([DISK_FREE_LIST + blockNo] == 0) then
+			break;
+		endif;
+		blockNo = blockNo + 1;
+	endwhile;
+
+	//no free block found
+	if (blockNo == DISK_SWAP_AREA) then
+		//return value is -1;
+		R0 = -1;
+		
+		return;
+	endif;
+
+	//setting disk free list entry of free block to 1
+	[DISK_FREE_LIST + blockNo] = 1;
+
+	//return value is the block number
+	R0 = blockNo;
+
+	return;
+endif;	
+
 //Release Block
 if (funcNum == 4) then
 	alias blockNo R2;

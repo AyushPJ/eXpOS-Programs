@@ -40,7 +40,7 @@ if (sysCallNo == 2) then
 
 	//free entry not found
 	if (counter == 8) then
-		//return value is -1
+		//return value is -3
 		[retAddr] = -3;
 
 		//resetting MODE FLAG
@@ -157,3 +157,147 @@ if (sysCallNo == 3) then
 	ireturn;
 
 endif;
+
+//seek system call
+if (sysCallNo == 6) then
+	
+	//changing MODE FLAG to system call number (i.e. 6 for seek)
+	[procTable + 4] = 6;
+
+	//extracting file descriptor from user stack	
+	alias fileDesc R11;
+	fileDesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	//invalid file descriptor
+	if (fileDesc < 0 || fileDesc > 7) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+		
+	alias resourceTableEntry R13;
+	resourceTableEntry = ([procTable + 11] * 512) + RESOURCE_TABLE_OFFSET + (2 * fileDesc);
+	
+	if ([resourceTableEntry] == -1			//invalid resource identifier
+		|| [resourceTableEntry] != FILE		//resource not a file
+	) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias openFileTableEntry R14;
+	openFileTableEntry = OPEN_FILE_TABLE + (4 * [resourceTableEntry + 1]);
+
+	alias inodeTableIndex R8;
+	inodeTableIndex = [openFileTableEntry];
+
+	alias inodeTableEntry R7;
+	inodeTableEntry = INODE_TABLE + (16 * inodeTableIndex);
+
+	//locking the inode
+	multipush(R7, R8, R9, R10, R11, R12, R13, R14);
+	R1 = ACQUIRE_INODE;		//function number
+	R2 = inodeTableIndex;		//inode index
+	R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+	call RESOURCE_MANAGER;	
+	multipop(R7, R8, R9, R10, R11, R12, R13, R14);
+	
+	//acquiring lock failed
+	if (R0 == -1) then
+		//return value is -1
+		[retAddr] = -1;
+		
+		SP = userSP;
+
+		//Reset MODE FLAG to 0
+		[procTable + 9] = 0;
+
+		ireturn;
+	endif;
+
+	alias lSeek R6;
+	lSeek = [openFileTableEntry + 2];
+	
+	//extracting offset from user stack
+	alias offset R5;
+	offset = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+	
+	alias filesize R4;
+	if ([openFileTableEntry] == INODE_ROOT) then
+		filesize = 480;
+	else
+		filesize = [inodeTableEntry + 2];
+	endif;
+ 
+	//lseek + offset is negative
+	if ((lSeek + offset) < 0) then
+		
+		//releasing lock on file
+		multipush(R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14);
+		R1 = RELEASE_INODE;		//function number
+		R2 = inodeTableIndex;		//inode index
+		R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+		call RESOURCE_MANAGER;	
+		multipop(R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14);
+		
+		//return value is -2;
+		[retAddr] = -2;
+	
+		SP = userSP;
+
+		//Reset MODE FLAG to 0
+		[procTable + 9] = 0;
+
+		ireturn;
+	endif;
+	
+	//given offset is 0
+	if (offset == 0) then
+		//setting lseek to 0
+		[openFileTableEntry + 2] = 0;
+	else
+		//lseek + offset is greater than file size
+		if ((lSeek + offset) > filesize) then
+			//setting lseek to file size
+			[openFileTableEntry + 2] = filesize;
+		else
+			//setting lseek to lseek + offset
+			[openFileTableEntry + 2] = lSeek + offset;
+
+		endif;
+	endif;
+	
+	//releasing lock on file
+	multipush(R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	R1 = RELEASE_INODE;		//function number
+	R2 = inodeTableIndex;		//inode index
+	R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+	call RESOURCE_MANAGER;	
+	multipop(R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	
+	//return value is 0
+	[retAddr] = 0;	
+
+	SP = userSP;
+
+	//Reset MODE FLAG to 0
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+	ireturn;
+endif;
+

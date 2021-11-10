@@ -1,0 +1,93 @@
+int main()
+{
+    decl
+        int temp, cpFromFD, cpToFD, eof, perm;
+	string cpFrom, cpTo, data;
+    enddecl
+
+    begin
+	
+	temp = exposcall("Write", -2, "Copy from:");
+	temp = exposcall("Read", -1, cpFrom);
+	
+	cpFromFD = exposcall("Open", cpFrom);
+
+	if (cpFromFD == -1) then
+		temp = exposcall("Write", -2, "Err: Bad file");
+
+	else if (cpFromFD == -2) then
+		temp = exposcall("Write", -2, "Err: Open lim");
+		
+	else if (cpFromFD == -3) then
+		temp = exposcall("Write", -2, "Err: Resrc lim");
+			
+	else
+
+		temp = exposcall("Write", -2, "Copy to:");
+		temp = exposcall("Read", -1, cpTo);
+	
+		temp = exposcall("Write", -2, "Perm(0/1):");
+		temp = exposcall("Read", -1, perm);
+		
+		temp = exposcall("Create", cpTo, perm);
+
+		if (temp == -1) then
+			temp = exposcall("Write", -2, "Err: inode full");
+	
+		else
+			
+			cpToFD = exposcall("Open", cpTo);
+
+			if (cpFromFD == -2) then
+				temp = exposcall("Write", -2, "Err: Open lim");
+				
+			else if (cpFromFD == -3) then
+				temp = exposcall("Write", -2, "Err: Resrc lim");
+					
+			else
+		
+				eof = exposcall("Read", cpFromFD, data);	
+				
+				if (eof == -1) then
+					temp = exposcall("Write", -2, "Err: Invalid FD");
+				else
+					while (eof != -2) do
+						temp = exposcall("Write", cpToFD, data);
+						if (temp == -1) then
+							temp = exposcall("Write", -2, "Err: Invalid FD");
+							break;
+						else if (temp == -2) then
+							temp = exposcall("Write", -2, "Err: No space");
+							break;
+						else if (temp == -3) then
+							temp = exposcall("Write", -2, "Err: Denied");
+							break;
+						endif;
+						endif;
+						endif;
+						eof = exposcall("Read", cpFromFD, data);
+					endwhile;
+					
+					if (eof == -2) then
+						if (temp == 0) then
+							temp = exposcall("Write", -2, "Success");
+						else
+							temp = exposcall("Write", -2, "Failed");
+						endif;
+					else
+						temp = exposcall("Write", -2, "Failed");
+					endif;
+						
+				endif;
+			endif;
+			endif;
+		endif;
+	endif;
+	endif;
+	endif;
+	
+        return 0;
+    end
+}
+
+

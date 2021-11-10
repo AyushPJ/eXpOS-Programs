@@ -4,45 +4,218 @@
 //Setting MODE FLAG to 'system call'
 [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 5;
 
-alias userSP R0;
+alias userSP R10;
 userSP = SP;
 
-//Saving user process context and switching to kernel stack
+//Saving user stack pointer and switching to kernel stack
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = userSP;
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 
-alias physicalPageNum R1;
-alias offset R2;
-alias fileDescPhysicalAddr R3;
-physicalPageNum = [PTBR + 2 * ((userSP - 4)/512)];
-offset = (userSP - 4) % 512;
-fileDescPhysicalAddr = (physicalPageNum * 512) + offset;
-alias fileDescriptor R4;
-fileDescriptor = [fileDescPhysicalAddr];
+alias fileDescriptor R11;
+fileDescriptor  = [([PTBR + 2 * ((userSP - 4) / 512)] * 512) + ((userSP - 4) % 512)];
 
-//Checking if file descriptor val is -2
-if (fileDescriptor != -2)
-then
-	alias physicalAddrRetVal R5;
-	physicalAddrRetVal = ([PTBR + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
-	[physicalAddrRetVal] = -1;
-else
-	alias word R5;
-	word = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
-	multipush(R0, R1, R2, R3, R4, R5, R6);
+alias word R12;
+word = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+
+//Checking if file descriptor val is -2 for terminal else file
+if (fileDescriptor == -2) then
+	multipush(R10, R11, R12);
 	R1 = 3;
 	R2 = [SYSTEM_STATUS_TABLE + 1];
 	R3 = word;
 	call DEVICE_MANAGER;
-	multipop(R0, R1, R2, R3, R4, R5, R6);
-	alias physicalAddrRetVal R6;
+	multipop(R10, R11, R12);
+	alias physicalAddrRetVal R13;
         physicalAddrRetVal = ([PTBR + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
         [physicalAddrRetVal] = 0;
+	
+	SP = userSP;
+
+	//Reset MODE FLAG to 0
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	
+	ireturn;
+else
+	alias retAddr  R13;
+	retAddr = ([PTBR + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+	
+	//invalid file descriptor;
+	if (fileDescriptor < 0 || fileDescriptor > 7) then
+		//return value is -1
+		[retAddr] = -1;
+	
+		SP = userSP;
+
+		//Reset MODE FLAG to 0
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+		ireturn;
+	
+	endif;
+	
+	alias resourceTableEntry R14;
+	resourceTableEntry = ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512) + RESOURCE_TABLE_OFFSET + (2 * fileDescriptor);
+	
+	if ([resourceTableEntry] == -1 		//resource identifier is invalid
+		|| [resourceTableEntry != FILE]	//resource is not a file
+	) then
+		//return value is -1
+		[retAddr] = -1;
+
+		SP = userSP;
+
+		//Reset MODE FLAG to 0
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+		ireturn;
+	endif;
+	
+	alias openFileTableEntry R9;
+	openFileTableEntry = OPEN_FILE_TABLE + (4 * [resourceTableEntry + 1]);
+	
+	alias inodeTableIndex R8;
+	inodeTableIndex = [openFileTableEntry];
+
+	alias inodeTableEntry R7;
+	inodeTableEntry = INODE_TABLE + (16 * inodeTableIndex);
+	
+	//exclusive permission set
+	if ([inodeTableEntry + 4] == 0) then
+		//user not root and user not owner
+		if ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1
+			&& [inodeTableEntry + 3] != [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3]
+		) then
+			//return value is -3
+			[retAddr] = -3;
+
+			//resetting MODE FLAG
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+		endif;
+	endif;
+	
+	
+	//locking the file
+	multipush(R9, R10, R11, R12, R13, R14);
+	R1 = ACQUIRE_INODE;		//function number
+	R2 = inodeTableIndex;		//inode index
+	R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+	call RESOURCE_MANAGER;	
+	multipop(R9, R10, R11, R12, R13, R14);
+
+	//acquiring lock failed
+	if (R0 == -1) then
+		//return value is -1
+		[retAddr] = -1;
+		
+		SP = userSP;
+
+		//Reset MODE FLAG to 0
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+		ireturn;
+	endif;
+
+	alias lSeek R6;
+	lSeek = [openFileTableEntry + 2];
+
+	//lseek at max file size
+	if (lSeek == MAX_FILE_SIZE) then
+		
+		//releasing lock on file
+		multipush(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+		R1 = RELEASE_INODE;		//function number
+		R2 = inodeTableIndex;		//inode index
+		R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+		call RESOURCE_MANAGER;	
+		multipop(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	
+		//return value is -2
+		[retAddr] = -2;
+		
+		SP = userSP;
+	
+		//Reset MODE FLAG to 0
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+		ireturn;
+
+	endif;	
+
+	//lseek equal to current file size and equal to multiple of 512
+	if (lSeek == [inodeTableEntry + 2] && (lSeek % 512) == 0) then
+		//getting free disk block
+		multipush(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+		R1 = GET_FREE_BLOCK;	//function number
+		call MEMORY_MANAGER;
+		multipop(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+		
+		//no free block available
+		if (R0 == -1) then
+		
+			//releasing lock on file
+			multipush(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+			R1 = RELEASE_INODE;		//function number
+			R2 = inodeTableIndex;		//inode index
+			R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+			call RESOURCE_MANAGER;	
+			multipop(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	
+			//return value is -2
+			[retAddr] = -2;
+			
+			SP = userSP;
+	
+			//Reset MODE FLAG to 0
+			[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+			ireturn;
+
+		endif;
+
+		//setting data block entry for new disk block in inode table
+		[inodeTableEntry + 8 + (lSeek/512)] = R0;
+
+	endif;
+	
+	//writing to disk using buffered write
+	multipush(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	R1 = BUFFERED_WRITE;				//function number
+	R2 = [inodeTableEntry + 8 + (lSeek/512)];	//disk block number corresponding to block index given by lseek/512
+	R3 = (lSeek % 512);				//block offset
+	R4 = word;					//word to be wriiten
+	call FILE_MANAGER;
+	multipop(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	
+	//lseek equal to file size
+	if (lSeek == [inodeTableEntry + 2]) then
+		//incrementing file size in inode table and root file
+		[inodeTableEntry + 2] = [inodeTableEntry + 2] + 1;
+		[ROOT_FILE + (inodeTableIndex * 8) + 1] = [ROOT_FILE + (inodeTableIndex * 8) + 1] + 1;	
+	endif;
+
+	//incrementing lseek
+	[openFileTableEntry + 2] = [openFileTableEntry + 2] + 1;	
+
+	//releasing lock on file
+	multipush(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	R1 = RELEASE_INODE;		//function number
+	R2 = inodeTableIndex;		//inode index
+	R3 = [SYSTEM_STATUS_TABLE + 1]; //PID
+	call RESOURCE_MANAGER;	
+	multipop(R6, R7, R8, R9, R10, R11, R12, R13, R14);
+	
+	//return value is 0
+	[retAddr] = 0;	
+
+	SP = userSP;
+
+	//Reset MODE FLAG to 0
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+	ireturn;
 endif;
-
-SP = userSP;
-
-//Reset MODE FLAG to 0
-[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
-
-ireturn;

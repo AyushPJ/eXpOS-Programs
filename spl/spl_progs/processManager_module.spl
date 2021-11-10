@@ -100,14 +100,16 @@ if (funcNum == 3) then
 		alias counter R6;
 		counter = 0;
 		while (counter < 16) do
+			alias procTableEntry R10;
+			procTableEntry = PROCESS_TABLE + (counter * 16);
 			//wake up processes waiting for current process
-			if ([PROCESS_TABLE + (counter * 16) + 4] == WAIT_PROCESS && [PROCESS_TABLE + (counter * 16) + 5] == PID) then
-				[PROCESS_TABLE + (counter * 16) + 4] = READY;
+			if ([procTableEntry + 4] == WAIT_PROCESS && [procTableEntry + 5] == PID) then
+				[procTableEntry + 4] = READY;
 			endif;
 	
 			//set children of current process as orphan processes by setting their PPID to -1
-			if ([PROCESS_TABLE + (counter * 16) + 2] == PID) then
-				[PROCESS_TABLE + (counter * 16) + 2] = -1;
+			if ([procTableEntry + 2] == PID) then
+				[procTableEntry + 2] = -1;
 			endif;
 			counter = counter + 1;
 		endwhile;
@@ -145,60 +147,124 @@ if (funcNum == 4) then
 	endwhile;
 	multipop(R1, R2);
 
-	alias PID R2;
+	alias PID R10;
+	PID = R2;
+	alias diskMapTableEntry R11;
+	diskMapTableEntry = DISK_MAP_TABLE + (PID * 10);
 	//calling Release Block and invalidating disk map table entries for stack and heap
 	//Heap
-	if ([DISK_MAP_TABLE + (PID * 10) + 2] != -1) then
+	if ([diskMapTableEntry + 2] != -1) then
 		//calling Release Block
-		multipush(R1, R2, R3, R4);
+		multipush(R10, R11);
 		funcNum = RELEASE_BLOCK;
 		R3 = PID;
-		R2 = [DISK_MAP_TABLE + (PID * 10) + 2];
+		R2 = [diskMapTableEntry + 2];
 		call MEMORY_MANAGER;
-		multipop(R1, R2, R3, R4);
-		[DISK_MAP_TABLE + (PID * 10) + 2] = -1;
+		multipop(R10, R11);
+		[diskMapTableEntry + 2] = -1;
 	endif;
-	if ([DISK_MAP_TABLE + (PID * 10) + 3] != -1) then
+	if ([diskMapTableEntry + 3] != -1) then
 		//calling Release Block
-		multipush(R1, R2, R3, R4);
+		multipush(R10, R11);
 		funcNum = RELEASE_BLOCK;
 		R3 = PID;
-		R2 = [DISK_MAP_TABLE + (PID * 10) + 3];
+		R2 = [diskMapTableEntry + 3];
 		call MEMORY_MANAGER;
-		multipop(R1, R2, R3, R4);
-		[DISK_MAP_TABLE + (PID * 10) + 3] = -1;
+		multipop(R10, R11);
+		[diskMapTableEntry + 3] = -1;
 	endif;
 	
 	//Stack
-	if ([DISK_MAP_TABLE + (PID * 10) + 8] != -1) then
+	if ([diskMapTableEntry + 8] != -1) then
 		//calling Release Block
-		multipush(R1, R2, R3, R4);
+		multipush(R10, R11);
 		funcNum = RELEASE_BLOCK;
 		R3 = PID;
-		R2 = [DISK_MAP_TABLE + (PID * 10) + 8];
+		R2 = [diskMapTableEntry + 8];
 		call MEMORY_MANAGER;
-		multipop(R1, R2, R3, R4);
-		[DISK_MAP_TABLE + (PID * 10) + 8] = -1;
+		multipop(R10, R11);
+		[diskMapTableEntry + 8] = -1;
 	endif;
-	if ([DISK_MAP_TABLE + (PID * 10) + 9] != -1) then
+	if ([diskMapTableEntry + 9] != -1) then
 		//calling Release Block
-		multipush(R1, R2, R3, R4);
+		multipush(R10, R11);
 		funcNum = RELEASE_BLOCK;
 		R3 = PID;
-		R2 = [DISK_MAP_TABLE + (PID * 10) + 9];
+		R2 = [diskMapTableEntry + 9];
 		call MEMORY_MANAGER;
-		multipop(R1, R2, R3, R4);
-		[DISK_MAP_TABLE + (PID * 10) + 9] = -1;
+		multipop(R10, R11);
+		[diskMapTableEntry + 9] = -1;
 	endif;
 
 	//Invalidating code block entries in Disk Map Table
-	[DISK_MAP_TABLE + (PID * 10) + 4] = -1;
-	[DISK_MAP_TABLE + (PID * 10) + 5] = -1;
-	[DISK_MAP_TABLE + (PID * 10) + 6] = -1;
-	[DISK_MAP_TABLE + (PID * 10) + 7] = -1;
+	[diskMapTableEntry + 4] = -1;
+	[diskMapTableEntry + 5] = -1;
+	[diskMapTableEntry + 6] = -1;
+	[diskMapTableEntry + 7] = -1;
 
 	return;
 	
 endif;
 
-return;
+//Kill All
+if (funcNum == 5) then
+	alias PID R10;
+	PID = R2;
+
+	//locking all files in inode table
+	alias counter R6;
+	counter = 0;
+	while (counter < 60) do
+		alias inodeTableEntry R11;
+		inodeTableEntry = INODE_TABLE + (16 * counter);
+		
+		//entry is valid
+		if ([inodeTableEntry + 1] != -1) then
+			//locking the inode
+			multipush(R6, R10, R11);
+			R1 = ACQUIRE_INODE;	//function number
+			R2 = counter;		//inode index
+			R3 = PID;		//PID
+			call RESOURCE_MANAGER;
+			multipop(R6, R10, R11);
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	//exiting all processes except idle, init, and function callee
+	counter = 2;
+	while (counter < 16) do
+		if (counter != PID
+			&& [PROCESS_TABLE + (counter * 16) + 4] != TERMINATED
+		) then
+			//calling exit process
+			multipush(R6, R10);
+			R1 = EXIT_PROCESS;
+			R2 = counter;
+			call PROCESS_MANAGER;
+			multipop(R6, R10);
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//unlocking all locked files in inode table
+	counter = 0;
+	while (counter < 60) do
+		alias inodeTableEntry R11;
+		inodeTableEntry = INODE_TABLE + (16 * counter);
+		
+		//entry is valid
+		if ([inodeTableEntry + 1] != -1) then
+			//locking the inode
+			multipush(R6, R10, R11);
+			R1 = RELEASE_INODE;	//function number
+			R2 = counter;		//inode index
+			R3 = PID;		//PID
+			call RESOURCE_MANAGER;
+			multipop(R6, R10, R11);
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	return;
+endif;
