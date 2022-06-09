@@ -7,7 +7,7 @@ loadi(69,11);
 loadi(70,12);
 
 //Set SP to kernel stack of IDLE Process (user area page number 82)
-SP = (82 * 512)-1;
+SP = (76 * 512)-1;
 
 call BOOT_MODULE;
 
@@ -15,7 +15,7 @@ call BOOT_MODULE;
 
 //Page Table
 PTBR = PAGE_TABLE_BASE;
-
+PTLR = 10;
 //Library
 [PTBR + 0] = 63;
 [PTBR + 1] = "0100";
@@ -31,39 +31,31 @@ PTBR = PAGE_TABLE_BASE;
 //Code
 [PTBR + 8] = 69;
 [PTBR + 9] = "0100";
-[PTBR + 10] = 70;
-[PTBR + 11] = "0100";
+[PTBR + 10] = -1;
+[PTBR + 11] = "0000";
 [PTBR + 12] = -1;
 [PTBR + 13] = "0000";
 [PTBR + 14] = -1;
 [PTBR + 15] = "0000";
 
 //Stack
-[PTBR + 16] = 81;
+[PTBR + 16] = 70;
 [PTBR + 17] = "0110";
-[MEMORY_FREE_LIST + 81] = 1;
 [PTBR + 18] = -1;
 [PTBR + 19] = "0000";
 
 //Process Table
 [PROCESS_TABLE + 1] = 0;
 [PROCESS_TABLE + 4] = RUNNING;
-[PROCESS_TABLE + 11] = 82;
-[MEMORY_FREE_LIST + 82] = 1;
+[PROCESS_TABLE + 11] = 76;
+[MEMORY_FREE_LIST + 76] = 1;
 [PROCESS_TABLE + 12] = 0;
 [PROCESS_TABLE + 13] = 8*512;
 [PROCESS_TABLE + 14] = PAGE_TABLE_BASE;
 [PROCESS_TABLE + 15] = PTLR;
 
 //entry point IP value fetched from top of stack for executing IDLE after IRET
-[81 * 512] = [69*512 + 1];
-
-//(S22_A2/S22_A3) storing number of context switches, process switches
-// at the end of user area page of IDLE process assuming it is left untouched by other operations
-[((82 + 1) * 512) - 1] = 0;	//context switches
-[((82 + 1) * 512) - 2] = 0;	//process switches
-[((82 + 1) * 512) - 3] = 0;	//disk accesses
-[((82 + 1) * 512) - 4] = 0;	//kernel switches
+[70 * 512] = [69*512 + 1];
 
 //System Status Table (first process IDLE)
 [SYSTEM_STATUS_TABLE + 1] = 0;

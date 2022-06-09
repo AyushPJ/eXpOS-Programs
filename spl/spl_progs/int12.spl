@@ -1,0 +1,65 @@
+//Saving user SP and switching to kernel stack
+alias userSP R9;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+alias procTable R10;
+procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+alias retAddr R11;
+retAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+//extracting system call number from user stack
+alias sysCallNo R12;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+
+//logout system call
+if (sysCallNo == 28) then
+	
+	//changing MODE FLAG to system call number (i.e. 28 for logout)
+	[procTable + 9] = 28;
+	
+	//current process not shell process
+	if ([procTable + 1] != 2) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//killing all user processes except shell by calling kill all function in process manager
+	multipush(R9, R10, R11, R12);
+	R1 = KILL_ALL;		//function number
+	R2 = [procTable + 1];	//PID
+	call PROCESS_MANAGER;
+	multipop(R9, R10, R11, R12);
+
+	//setting state of shell process to TERMINATED
+	[procTable + 4] = TERMINATED;
+
+	//getting entry point IP value from header of shell program
+	alias entryPointIP R13;
+	entryPointIP = [([PTBR + 8] * 512) + 1];
+	//placing entry point IP at the beginning of stack of shell program
+	[([PTBR + 16] * 512)] = entryPointIP;
+
+	//resetting user SP field in process table of shell process to beginning of stack
+	[procTable + 13] = 4096;
+
+	//waking up login process
+	[PROCESS_TABLE + (1 * 16) + 4] = READY;
+
+	//resetting current user ID in system status table to 0(kernel)
+	[SYSTEM_STATUS_TABLE] = 0;
+	
+	call SCHEDULER;
+endif;
+

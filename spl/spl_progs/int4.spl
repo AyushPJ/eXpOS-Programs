@@ -99,7 +99,7 @@ if (sysCallNo == 1) then
 	[rootFileEntry + 0] = filename;
 	[rootFileEntry + 1] = 0;
 	[rootFileEntry + 2] = DATA;
-	[rootFileEntry + 3] = [procTable + 3];
+	[rootFileEntry + 3] = [USER_TABLE + (2*[procTable + 3])];
 	[rootFileEntry + 4] = permission;
 
 	//return value is 0

@@ -1,0 +1,116 @@
+//Saving user SP and switching to kernel stack
+alias userSP R9;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+alias procTable R10;
+procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+alias retAddr R11;
+retAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+//extracting system call number from user stack
+alias sysCallNo R12;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+
+//login system call
+if (sysCallNo == 27) then
+	
+	//changing MODE FLAG to system call number (i.e. 27 for login)
+	[procTable + 9] = 27;
+	
+	//current process not login process
+	if ([procTable + 1] != 1) then
+		//return value is -2
+		[retAddr] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//extracting username from user stack	
+	alias username R12;
+	username = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	alias counter R6;
+	counter = 0;
+	while (counter < 16) do
+		if ([USER_TABLE + (2*counter)] == username) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//user does not exist
+	if (counter == 16) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias userID R13;
+	userID = counter;
+
+	//extracting password from user stack	
+	alias password R14;
+	password = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+	
+	encrypt password;
+
+	//password is incorrect
+	if (password != [USER_TABLE + (2*userID) + 1]) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//setting shell process' state to CREATED and userID to userID of user logging in
+	alias shellPTEntry R15;
+	shellPTEntry = PROCESS_TABLE + (2 * 16);
+	[shellPTEntry + 4] = CREATED;
+	[shellPTEntry + 3] = userID;
+
+	//setting current process' state to (WAIT_PROCESS, 2)
+	[procTable + 4] = WAIT_PROCESS;
+	[procTable + 5] = 2;
+		
+	//setting current user id in system status table to userID of user logging in
+	[SYSTEM_STATUS_TABLE] = userID;
+
+	multipush(R9, R10, R11, R12, R13, R14);
+	call SCHEDULER;
+	multipop(R9, R10, R11, R12, R13, R14);
+
+	//return value is -1
+	[retAddr] = 0;
+
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+endif;
+

@@ -1,0 +1,398 @@
+//Saving user SP and switching to kernel stack
+alias userSP R9;
+userSP = SP;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16 ) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+alias procTable R10;
+procTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+	
+alias retAddr R11;
+retAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+//extracting system call number from user stack
+alias sysCallNo R13;
+sysCallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+//extracting argument 1 from user stack	
+alias arg1 R12;
+arg1 = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+//extracting argument 2 from user stack	
+alias arg2 R14;
+arg2 = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+
+//newusr system call
+if (sysCallNo == 22) then
+	
+	//changing MODE FLAG to system call number (i.e. 22 for newusr)
+	[procTable + 9] = 22;
+	
+	//current user not root or current process not shell
+	if ([SYSTEM_STATUS_TABLE] != 1 || [procTable + 1] != 2) then
+		//return value is -2
+		[retAddr] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+	
+	alias username R12;
+
+	alias counter R6;
+	counter = 0;
+	
+	//checking if user exists in user table
+	while (counter < 16) do
+		//user exists
+		if ([USER_TABLE + (2*counter)] == username) then
+			//return value is -1
+			[retAddr] = -1;
+
+			//resetting MODE FLAG
+			[procTable + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+			
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//finding free entry in user table
+	counter = 0;
+	while (counter < 16) do
+		//user exists
+		if ([USER_TABLE + (2*counter)] == -1) then
+			break;	
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//no free entry found
+	if (counter == 16) then
+		//return value is -3
+		[retAddr] = -3;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+			
+	endif;
+
+	alias userID R13;
+	userID = counter;
+
+	//extracting password from user stack	
+	alias password R14;
+	
+	encrypt password;
+	
+	//storing username and encrypted password in user table
+	[USER_TABLE + (2*userID)] = username;
+	[USER_TABLE + (2*userID) + 1] = password;	
+	
+	//return value is 0
+	[retAddr] = 0;
+
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+endif;
+
+//remusr system call
+if (sysCallNo == 23) then
+	
+	//changing MODE FLAG to system call number (i.e. 23 for remusr)
+	[procTable + 9] = 23;
+	
+	//current user not root or current process not shell
+	if ([SYSTEM_STATUS_TABLE] != 1 || [procTable + 1] != 2) then
+		//return value is -2
+		[retAddr] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias username R12;
+	
+	//user to be removed is root or kernel
+	if (username == "root" || username == "kernel") then	
+		//return value is -2
+		[retAddr] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//finding the user table entry corresponding to username
+
+	alias counter R6;
+	counter = 0;
+	while (counter < 16) do
+		//user exists
+		if ([USER_TABLE + (2*counter)] == username) then
+			break;	
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//entry not found
+	if (counter == 16) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias userID R13;
+	userID = counter;
+		
+	//checking for files belonging to user to be removed
+	counter = 0;
+	while (counter < 60) do
+		//file present
+		if ([ROOT_FILE + (8 * counter)] != -1 && [ROOT_FILE + (8*counter) + 3] == username) then
+			break;	
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//file is present
+	if (counter != 60) then
+		//return value is -3
+		[retAddr] = -3;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+	
+	//invalidating username and encrypted password in user table corresponding to user to be removed
+	[USER_TABLE + (2*userID)] = -1;
+	[USER_TABLE + (2*userID) + 1] = -1;	
+	
+	//return value is 0
+	[retAddr] = 0;
+
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+endif;
+
+//setpwd system call
+if (sysCallNo == 24) then
+	
+	//changing MODE FLAG to system call number (i.e. 24 for setpwd)
+	[procTable + 9] = 24;
+	
+	//current process not shell
+	if ([procTable + 1] != 2) then
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias username R12;
+	
+	//finding the user table entry corresponding to username
+
+	alias counter R6;
+	counter = 0;
+	while (counter < 16) do
+		//user exists
+		if ([USER_TABLE + (2*counter)] == username) then
+			break;	
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//entry not found
+	if (counter == 16) then
+		//return value is -2
+		[retAddr] = -2;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	alias userID R13;
+	userID = counter;
+
+	//user ID of user to change password is not user ID of current user
+	if ([SYSTEM_STATUS_TABLE] != userID) then
+		//user is not root
+		if ([SYSTEM_STATUS_TABLE] != 1) then
+			//return value is -1
+			[retAddr] = -1;
+
+			//resetting MODE FLAG
+			[procTable + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+		endif;
+	endif;
+			
+	alias password R14;
+	
+	encrypt password;
+	
+	//storing new encrypted password in user table
+	[USER_TABLE + (2*userID) + 1] = password;	
+
+	//return value is 0
+	[retAddr] = 0;
+
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+endif;
+
+//getuname system call
+if (sysCallNo == 25) then
+	
+	//changing MODE FLAG to system call number (i.e. 25 for getuname)
+	[procTable + 9] = 25;
+	
+	alias userID R12;
+	
+	//invalid user ID
+	if (userID < 0 || userID > 15) then	
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//user table entry corresponding to user ID is invalid
+	if ([USER_TABLE + (2*userID)] == -1) then	
+		//return value is -1
+		[retAddr] = -1;
+
+		//resetting MODE FLAG
+		[procTable + 9] = 0;
+
+		//switching to user stack
+		SP = userSP;
+
+		ireturn;
+	endif;
+
+	//entry found
+	//return value is username
+	[retAddr] = [USER_TABLE + (2*userID)];
+
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+endif;
+
+//getuid system call
+if (sysCallNo == 26) then
+	
+	//changing MODE FLAG to system call number (i.e. 26 for getuid)
+	[procTable + 9] = 26;
+	
+	alias username R12;
+	
+	//finding the user table entry corresponding to username
+	alias counter R6;
+	counter = 0;
+	while (counter < 16) do
+		//user exists
+		if ([USER_TABLE + (2*counter)] == username) then	
+			//return value is user ID (index of entry in user table)
+			[retAddr] = counter;
+
+			//resetting MODE FLAG
+			[procTable + 9] = 0;
+
+			//switching to user stack
+			SP = userSP;
+
+			ireturn;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//entry not found
+	//return value is -1
+	[retAddr] = -1;
+
+	//resetting MODE FLAG
+	[procTable + 9] = 0;
+
+	//switching to user stack
+	SP = userSP;
+
+	ireturn;
+endif;

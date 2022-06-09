@@ -1,0 +1,48 @@
+int main()
+{
+ decl
+	int temp, eof, fileDesc;
+	string fname, fusrname, usrname;
+ enddecl
+ begin
+
+	temp = exposcall("Write", -2, "Enter username:");
+	temp = exposcall("Read", -1, usrname);
+
+	fileDesc = exposcall("Open", "root");
+
+	if (fileDesc == -2) then
+		temp = exposcall("Write", -2, "Err: Open lim");
+		
+	else
+		eof = exposcall("Read", fileDesc, fname);	
+				
+		while (eof != -2) do
+			if (fname != "-1") then
+				temp = exposcall("Seek", fileDesc, 2);
+				
+				if (temp == -2) then
+					temp = exposcall("Write", -2, "Err: offset out");
+					break;
+				endif;
+				eof = exposcall("Read", fileDesc, fusrname);
+				if (eof == -2) then
+					break;
+				endif;
+				if (fusrname == usrname) then	
+					temp = exposcall("Delete", fname);
+				endif;
+				temp = exposcall("Seek", fileDesc, 4);
+			else
+				temp = exposcall("Seek", fileDesc, 7);
+			endif;
+			if (temp == -2) then
+				temp = exposcall("Write", -2, "Err: offset out");
+				break;
+			endif;
+			eof = exposcall("Read", fileDesc, fname);
+		endwhile;
+	endif;	
+ 	return 0;
+ end
+}

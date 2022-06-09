@@ -9,6 +9,14 @@ loadi(60,4);
 //Load Root File
 loadi(62,5);
 
+//Load INT17 module
+loadi(36,49);
+loadi(37,50);
+
+//Load INT16 module
+loadi(34,47);
+loadi(35,48);
+
 //Load INT15 module
 loadi(32,45);
 loadi(33,46);
@@ -20,6 +28,10 @@ loadi(31,44);
 //Load INT13 module
 loadi(28,41);
 loadi(29,42);
+
+//Load INT12 module
+loadi(26,39);
+loadi(27,40);
 
 //Load INT11 module
 loadi(24,37);
@@ -72,6 +84,10 @@ loadi(9,22);
 //Load INIT Process
 loadi(65,7);
 loadi(66,8);
+
+//Load Shell Process
+loadi(67,9);
+loadi(68,10);
 
 //Page Table Setup
 PTLR = 10;
@@ -177,6 +193,14 @@ endwhile;
 
 //Page Table
 PTBR = PAGE_TABLE_BASE+20;
+PTLR = 10;
+//initializing all entries to invalid
+counter = 0;
+while (counter < 10) do
+	[PTBR + (2*counter)] = -1;
+	[PTBR + (2*counter) + 1] = "0000";
+	counter = counter + 1;
+endwhile;
 
 //Library
 [PTBR + 0] = 63;
@@ -184,39 +208,21 @@ PTBR = PAGE_TABLE_BASE+20;
 [PTBR + 2] = 64;
 [PTBR + 3] = "0100";
 
-//Heap
-[PTBR + 4] = 78;
-[PTBR + 5] = "0110";
-[MEMORY_FREE_LIST + 78] = 1;
-[PTBR + 6] = 79;
-[PTBR + 7] = "0110";
-[MEMORY_FREE_LIST + 79] = 1;
-
 //Code
 [PTBR + 8] = 65;
 [PTBR + 9] = "0100";
-[PTBR + 10] = 66;
-[PTBR + 11] = "0100";
-[PTBR + 12] = -1;
-[PTBR + 13] = "0000";
-[PTBR + 14] = -1;
-[PTBR + 15] = "0000";
 
 //Stack
-[PTBR + 16] = 76;
+[PTBR + 16] = 66;
 [PTBR + 17] = "0110";
-[MEMORY_FREE_LIST + 76] = 1;
-[PTBR + 18] = 77;
-[PTBR + 19] = "0110";
-[MEMORY_FREE_LIST + 77] = 1;
 
 //Process Table
 procTable = PROCESS_TABLE + 16;
 [procTable + 1] = 1;
 [procTable + 3] = 1; 		//user ID is 1 (root)
 [procTable + 4] = CREATED;
-[procTable + 11] = 80;
-[MEMORY_FREE_LIST + 80] = 1;
+[procTable + 11] = 77;
+[MEMORY_FREE_LIST + 77] = 1;
 [procTable + 12] = 0;
 [procTable + 13] = 8*512;
 [procTable + 14] = PTBR;
@@ -224,33 +230,89 @@ procTable = PROCESS_TABLE + 16;
 
 //Initializing per-process resource table of init
 counter = 0;
+alias resrcTable R2;
+resrcTable = (([procTable + 11] + 1) * 512) - 16;
 while(counter < 8) do
-	[(([procTable + 11] + 1) * 512) - 16 + (2 * counter)] = -1;
+	[resrcTable + (2 * counter)] = -1;
 	counter = counter + 1;
 endwhile;
 
-//Initializing Disk Map Table for init
+//entry point IP value fetched from top of stack for executing INIT after IRET
+[66*512] = [65 * 512 + 1];
 
-//Heap
-[DISK_MAP_TABLE + (1 * 10) + 2] = -1;
-[DISK_MAP_TABLE + (1 * 10) + 3] = -1;
+//Shell Process
+
+//Page Table
+PTBR = PAGE_TABLE_BASE+40;
+PTLR = 10;
+//initializing all entries to invalid
+counter = 0;
+while (counter < 10) do
+	[PTBR + (2*counter)] = -1;
+	[PTBR + (2*counter) + 1] = "0000";
+	counter = counter + 1;
+endwhile;
+
+//Library
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
 
 //Code
-[DISK_MAP_TABLE + (1 * 10) + 4] = 65;
-[DISK_MAP_TABLE + (1 * 10) + 5] = 66;
-[DISK_MAP_TABLE + (1 * 10) + 6] = -1;
-[DISK_MAP_TABLE + (1 * 10) + 7] = -1;
+[PTBR + 8] = 67;
+[PTBR + 9] = "0100";
+[PTBR + 10] = 68;
+[PTBR + 11] = "0100";
 
 //Stack
-[DISK_MAP_TABLE + (1 * 10) + 8] = -1;
-[DISK_MAP_TABLE + (1 * 10) + 9] = -1;
+[PTBR + 16] = 78;
+[PTBR + 17] = "0110";
+[MEMORY_FREE_LIST + 78] = 1;
+[PTBR + 18] = 79;
+[PTBR + 19] = "0110";
+[MEMORY_FREE_LIST + 79] = 1;
+
+//Process Table
+procTable = PROCESS_TABLE + 32;
+[procTable + 1] = 2;
+[procTable + 2] = 1;
+[procTable + 3] = 1; 		//user ID is 1 (root)
+[procTable + 4] = TERMINATED;
+[procTable + 11] = 80;
+[MEMORY_FREE_LIST + 80] = 1;
+[procTable + 12] = 0;
+[procTable + 13] = 8*512;
+[procTable + 14] = PTBR;
+[procTable + 15] = PTLR;
+
+//Initializing per-process resource table of shell
+counter = 0;
+resrcTable = (([procTable + 11] + 1) * 512) - 16 ;
+while(counter < 8) do
+	[resrcTable + (2 * counter)] = -1;
+	counter = counter + 1;
+endwhile;
+
+//Initializing Disk Map Table for shell
+alias dmt R2;
+dmt = (DISK_MAP_TABLE + (2*10));
+counter = 2;
+
+while (counter < 9) do
+	[dmt + counter] = -1;
+	counter = counter + 1;
+endwhile;
+
+[dmt + 4] = 67;
+[dmt + 5] = 68;
 
 //entry point IP value fetched from top of stack for executing INIT after IRET
-[76*512] = [65 * 512 + 1];
+[78*512] = [67 * 512 + 1];
 
 //Initializing Wait Mem Count and Mem Free Count in System Status Table
 [SYSTEM_STATUS_TABLE + 3] = 0;
 //(Total - Reserved - Allocated) 
-[SYSTEM_STATUS_TABLE + 2] = 128 - 76 - 7;
+[SYSTEM_STATUS_TABLE + 2] = 128 - 76 - 5;
 
 return;

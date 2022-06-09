@@ -1,6 +1,3 @@
-//(S22_A3) increment number of kernel switches
-[(82 + 1) * 512 - 4] = [(82+1) * 512 - 4] + 1;
-
 //Saving user SP and switching to kernel stack
 alias userSP R10;
 userSP = SP;

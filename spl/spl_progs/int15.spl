@@ -9,7 +9,7 @@ SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 
 //shutdown not invoked by shell and current user is not root
 if ([SYSTEM_STATUS_TABLE + 1] != 2					//PID not 2
-	&& [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1	//user ID not 1 (root)
+	|| [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1	//user ID not 1 (root)
 ) then
 	//return value is -1
 	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
